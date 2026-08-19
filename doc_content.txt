@@ -1,0 +1,203 @@
+LAPORAN KEMAJUAN
+Sistem Deteksi dan Klasifikasi Kemacetan Lalu Lintas
+Ruas Sitinjau Lauik (Padang – Solok) Berbasis Computer Vision
+Evaluasi Model Deteksi Objek (YOLOv8), Rencana Peningkatan Akurasi,
+dan Data Acuan Lapangan untuk Kalibrasi Model Perhitungan Kepadatan
+Disusun oleh:
+Maheza
+Program Studi Teknik Informatika
+Universitas Putra Indonesia YPTK Padang
+Daftar Isi
+1. Pendahuluan
+2. Evaluasi Model Deteksi Objek (YOLOv8) dan Rencana Peningkatan
+   2.1 Permasalahan: Deteksi Motor Tidak Akurat
+   2.2 Analisis Penyebab dan Opsi Solusi
+   2.3 Metrik Evaluasi Model Baseline
+   2.4 Rencana Peningkatan/Pembaruan Model
+3. Data Resmi dan Acuan Lapangan Ruas Sitinjau Lauik
+   3.1 Data Geometrik dan Teknis Jalan
+   3.2 Data Volume dan Kecepatan Lalu Lintas
+   3.3 Data Kecelakaan dan Titik Rawan (Black Spot)
+   3.4 Kebijakan dan Rekayasa Lalu Lintas Berlaku
+4. Kalibrasi Model Perhitungan Kepadatan dengan Data Lapangan
+5. Kesimpulan dan Rencana Tindak Lanjut
+Referensi
+1. Pendahuluan
+Dokumen ini disusun sebagai tindak lanjut atas masukan yang diberikan pada sesi bimbingan sebelumnya, mencakup tiga hal utama: (1) evaluasi akurasi model deteksi objek YOLOv8 yang digunakan pada prototipe sistem, khususnya permasalahan deteksi sepeda motor yang belum optimal; (2) rangkuman metrik evaluasi model baseline beserta opsi pembaruan untuk meningkatkan akurasi; dan (3) kompilasi data resmi mengenai kondisi ruas jalan Sitinjau Lauik yang dapat dijadikan acuan dan landasan perhitungan tingkat kemacetan.
+Prototipe sistem saat ini menggunakan pendekatan rule-based expert system untuk mengklasifikasikan status lalu lintas (lancar/padat/macet) berdasarkan volume kendaraan yang terdeteksi kamera, dikonversi ke satuan meter-lajur, dan dibandingkan terhadap kapasitas volumetrik ruas jalan. Seluruh data pada dokumen ini digunakan untuk memvalidasi dan mengkalibrasi model tersebut agar merepresentasikan kondisi riil di lapangan.
+2. Evaluasi Model Deteksi Objek (YOLOv8) dan Rencana Peningkatan
+2.1 Permasalahan: Deteksi Motor Tidak Akurat
+Berdasarkan evaluasi lapangan, model YOLOv8 yang digunakan pada prototipe menunjukkan performa baik untuk kelas kendaraan mobil, truk, dan bus, namun tidak mampu mendeteksi sepeda motor secara konsisten. Fenomena ini merupakan permasalahan yang umum dijumpai pada deteksi objek berbasis YOLO dan memiliki penyebab yang dapat diidentifikasi secara sistematis.
+Catatan: nama resmi model generasi setelah YOLOv8 menurut Ultralytics adalah “YOLO11” (tanpa huruf ‘v’), berbeda dari konvensi YOLOv8/v9/v10 sebelumnya. Penamaan “YOLO11” digunakan secara konsisten pada dokumen ini mengikuti dokumentasi resmi.
+2.2 Analisis Penyebab dan Opsi Solusi
+Kegagalan deteksi kelas motor pada kondisi CCTV/kamera lalu lintas jalan raya umumnya disebabkan oleh kombinasi faktor berikut, berdasarkan diskusi teknis pada repositori resmi Ultralytics (pengembang YOLO):
+Ukuran objek relatif kecil (small object detection). Motor yang terekam dari kamera CCTV pada jarak jauh menghasilkan bounding box berukuran sangat kecil dibanding truk/bus/mobil, sehingga sinyal fitur yang ditangkap model jauh lebih lemah.
+Resolusi input training (imgsz) yang tidak memadai. Jika model dilatih pada resolusi rendah (mis. 640x640 default), objek kecil seperti motor pada frame beresolusi tinggi akan semakin mengecil setelah proses resize, sehingga detail visual yang dibutuhkan untuk deteksi hilang.
+Ketidakseimbangan data latih (class imbalance) atau kualitas anotasi motor yang kurang presisi (bounding box terlalu longgar) pada dataset training yang digunakan.
+Terdapat dua opsi solusi yang dapat dipertimbangkan:
+Opsi A — Fine-Tuning Model YOLOv8 Eksisting
+Menambah data anotasi khusus kelas motor dari rekaman kamera Sitinjau Lauik sendiri (domain-specific), karena kondisi pencahayaan, sudut kamera, dan kepadatan objek di lapangan berbeda dari dataset umum.
+Menaikkan parameter resolusi training (imgsz) dari default 640 menjadi 1280, agar objek kecil seperti motor memiliki representasi piksel yang lebih besar saat training.
+Menerapkan augmentasi data yang menekankan objek kecil (mosaic augmentation, scaling, cropping) sesuai rekomendasi resmi Ultralytics untuk kasus deteksi objek kecil.
+Memastikan kualitas bounding box anotasi motor rapat/tight terhadap objek (tidak longgar), karena kotak anotasi yang longgar terbukti menurunkan akurasi deteksi objek kecil secara signifikan.
+Opsi B — Migrasi ke YOLO11
+YOLO11 (dirilis Ultralytics, generasi setelah YOLOv8) menghadirkan dua perubahan arsitektur utama dibanding YOLOv8: (1) modul C3k2 yang menggantikan C2f pada backbone dan head, meningkatkan efisiensi ekstraksi fitur spasial; dan (2) modul C2PSA (Cross-Stage Partial Spatial Attention) — mekanisme attention baru pada backbone yang secara spesifik dirancang untuk membantu model fokus pada area kecil/detail penting dalam gambar. Modul C2PSA inilah yang paling relevan untuk permasalahan deteksi motor pada sistem ini, karena secara resmi didokumentasikan sebagai peningkatan untuk deteksi objek kecil dan penanganan oklusi (objek yang sebagian tertutup objek lain).
+Data benchmark resmi pada dataset COCO (sumber: dokumentasi resmi Ultralytics) menunjukkan YOLO11 secara konsisten unggul dari YOLOv8 pada seluruh varian ukuran model, dengan jumlah parameter yang justru lebih sedikit:
+Model
+mAP50-95 (COCO)
+Parameter (Juta)
+FLOPs (Miliar)
+YOLOv8m
+50.2
+25.9
+78.9
+YOLO11m
+51.5
+20.1
+68.0
+YOLOv8l
+52.9
+43.7
+165.2
+YOLO11l
+53.4
+25.3
+86.9
+Tabel 1. Perbandingan resmi YOLOv8 vs YOLO11 pada dataset benchmark COCO
+Sumber: Ultralytics Documentation — docs.ultralytics.com/compare/yolo11-vs-yolov8
+Rekomendasi: kedua opsi tidak saling eksklusif. Migrasi ke arsitektur YOLO11 memberikan peningkatan kemampuan deteksi objek kecil secara struktural (arsitektur lebih baik untuk motor), namun tetap perlu dikombinasikan dengan fine-tuning menggunakan data lokal Sitinjau Lauik (Opsi A) agar model beradaptasi dengan kondisi kamera dan lingkungan spesifik lapangan. Pendekatan yang diusulkan: migrasi ke YOLO11 sebagai base model baru, dilanjutkan fine-tuning dengan dataset motor hasil anotasi mandiri dari rekaman kamera Gerbang A/B.
+2.3 Metrik Evaluasi Model Baseline
+Metrik evaluasi standar untuk model deteksi objek YOLO, sebagaimana dipublikasikan resmi oleh Ultralytics untuk model pretrained pada dataset COCO, mencakup:
+mAP50-95 (mean Average Precision): rata-rata presisi deteksi pada rentang IoU threshold 0.5 hingga 0.95 — metrik utama yang merepresentasikan akurasi keseluruhan model.
+Kecepatan inferensi (CPU ONNX & GPU TensorRT, dalam milidetik) — relevan untuk menentukan apakah model dapat berjalan real-time pada perangkat yang tersedia di lapangan.
+Jumlah parameter (juta) dan FLOPs (miliar) — merepresentasikan kompleksitas komputasi model.
+Model
+mAP50-95
+Speed CPU (ms)
+Speed GPU T4 (ms)
+Parameter (M)
+YOLOv8n
+37.3
+80.4
+1.47
+3.2
+YOLOv8s
+44.9
+128.4
+2.66
+11.2
+YOLOv8m
+50.2
+234.7
+5.86
+25.9
+YOLO11n
+39.5
+56.1
+1.5
+2.6
+YOLO11s
+47.0
+90.0
+2.5
+9.4
+YOLO11m
+51.5
+183.2
+4.7
+20.1
+Tabel 2. Metrik evaluasi resmi model YOLO pada dataset benchmark COCO (per varian ukuran)
+Sumber: Ultralytics Documentation — docs.ultralytics.com/models/yolo11 dan docs.ultralytics.com/models/yolov8
+Catatan penting: angka mAP50-95 di atas adalah hasil benchmark resmi pada dataset umum COCO (80 kelas objek umum), bukan hasil evaluasi spesifik terhadap dataset kendaraan Sitinjau Lauik. Nilai mAP aktual model yang sedang digunakan pada prototipe perlu dihitung ulang secara khusus menggunakan data validasi lokal (rekaman kamera Gerbang A) agar merepresentasikan performa riil di lapangan — bukan diasumsikan sama dengan angka benchmark COCO ini. Proses evaluasi ulang ini direkomendasikan sebagai bagian dari rencana tindak lanjut (Bagian 5).
+2.4 Rencana Peningkatan/Pembaruan Model
+Migrasi base model dari YOLOv8 ke YOLO11 (varian ukuran disesuaikan kapasitas komputasi perangkat lapangan, direkomendasikan mulai dari varian ‘s’ atau ‘m’ untuk keseimbangan akurasi dan kecepatan).
+Menaikkan resolusi input training (imgsz) menjadi 1280 piksel untuk meningkatkan deteksi objek kecil seperti motor.
+Pengumpulan dan anotasi dataset motor tambahan dari rekaman kamera Gerbang A dan Gerbang B, dengan bounding box presisi (tight, tidak longgar).
+Fine-tuning model YOLO11 dengan dataset gabungan (umum + lokal Sitinjau Lauik).
+Evaluasi ulang model menggunakan metrik mAP50-95, precision, recall, dan confusion matrix per kelas kendaraan pada data validasi lokal — bukan hanya mengandalkan angka benchmark COCO.
+3. Data Resmi dan Acuan Lapangan Ruas Sitinjau Lauik
+Bagian ini merangkum data yang berhasil dikumpulkan dari sumber resmi pemerintah, publikasi akademik terindeks, dan pemberitaan yang dikonfirmasi berulang oleh pernyataan resmi Dinas Perhubungan (Dishub) Provinsi Sumatera Barat. Data ini digunakan sebagai acuan kalibrasi terhadap model perhitungan kepadatan pada sistem.
+3.1 Data Geometrik dan Teknis Jalan
+Parameter
+Nilai
+Sumber
+Status jalan
+Jalan Nasional
+Balai Pelaksanaan Jalan Nasional (BPJN) Sumatera Barat, Kementerian PU
+Muatan Sumbu Terberat (MST) diizinkan
+± 10 ton
+Dinas Perhubungan Provinsi Sumatera Barat
+Radius tikungan tersempit (eksisting)
+± 15–16 meter
+ANTARA Sumbar, liputan proyek flyover Panorama I
+Karakteristik medan
+Tanjakan curam dan tikungan tajam berulang, kontur menurun signifikan di beberapa segmen
+Jurnal Ilmiah Rekayasa Sipil (JIRS), Politeknik Negeri Padang — penulis dari Institut Teknologi Padang
+Tabel 3. Data geometrik dan teknis Ruas Jalan Sitinjau Lauik
+3.2 Data Volume dan Kecepatan Lalu Lintas
+Parameter
+Nilai
+Sumber
+Lalu Lintas Harian Rata-rata (LHR), rata-rata 5 tahun
+22.898 smp/hari
+Data resmi terukur, dikutip dalam publikasi Jurnal Ilmiah Rekayasa Sipil (JIRS) — Institut Teknologi Padang, periode 2017–2021
+Kecepatan rata-rata kendaraan (arah Padang→Solok)
+37,67 – 44,80 km/jam (bervariasi menurut lokasi dan kelandaian)
+Skripsi D3 — Ma’arif, R. (2022), Universitas Andalas, survei langsung di ruas Padang–Sitinjau Lauik
+Kecepatan rata-rata kendaraan (arah Solok→Padang)
+40,39 – 45,44 km/jam
+Skripsi D3 — Ma’arif, R. (2022), Universitas Andalas
+Headway rata-rata antar kendaraan
+1,72 – 1,93 detik
+Skripsi D3 — Ma’arif, R. (2022), Universitas Andalas
+Tabel 4. Data volume dan kecepatan lalu lintas Ruas Sitinjau Lauik
+Sumber: LHR: Wahab dkk. (2023), JIRS 20(2), DOI 10.30630/jirs.v20i2.1216. Kecepatan/headway: Ma’arif, R. (2022), “Studi Pengaruh Alinemen Vertikal terhadap Karakteristik Iringan Kendaraan”, skripsi D3 Universitas Andalas.
+3.3 Data Kecelakaan dan Titik Rawan (Black Spot)
+Penelitian akademik terpublikasi dengan metode Accident Rate mengidentifikasi tiga segmen jalan pada ruas Lubuk Paraku – Sitinjau Lauik sebagai black spot (tingkat kecelakaan > 1,0 kecelakaan/km/tahun), dengan data kecelakaan periode 2017–2021:
+Segmen Jalan
+Tingkat Kecelakaan (per km/tahun)
+Faktor Dominan
+Panorama 2 – Batas Kota Padang-Solok
+Tertinggi (segmen paling rawan)
+Faktor manusia (57,35%), rem blong akibat turunan curam
+Panorama 1 – Cucian Bintang
+Tinggi
+Faktor manusia, faktor kendaraan
+Cucian Bintang – Panorama 2
+Tinggi (terendah di antara ketiganya, namun tetap > 1,0)
+Faktor manusia, faktor kendaraan
+Tabel 5. Klasifikasi Black Spot kecelakaan ruas Lubuk Paraku – Sitinjau Lauik periode 2017–2021
+Sumber: Wahab, W., Roza, A., Ramadhani, M.F., & Yusnita, Y. (2023). “Analisis Kecelakaan Lalu Lintas Ruas Jalan Padang-Solok dengan Metode Accident Rate.” Jurnal Ilmiah Rekayasa Sipil (JIRS), 20(2). DOI: 10.30630/jirs.v20i2.1216
+3.4 Kebijakan dan Rekayasa Lalu Lintas Berlaku
+Dinas Perhubungan Provinsi Sumatera Barat secara resmi mengonfirmasi bahwa pola kemacetan di ruas Sitinjau Lauik bersifat event-driven (dipicu kejadian spesifik), bukan kepadatan volumetrik yang merata sepanjang ruas. Beberapa kebijakan rekayasa lalu lintas yang pernah/sedang diterapkan:
+Pelepasan bertahap truk (platooning terkendali): 10 unit truk dilepas setiap 5 menit dari arah Solok menuju Padang, karena kondisi jalan menurun tajam pada arah tersebut.
+Pembatasan jam operasional kendaraan berat dari arah Padang menuju Solok, kendaraan berat baru dilepas mulai pukul 20.00 WIB untuk mencegah kemacetan akibat tanjakan.
+Kebijakan ini diterapkan situasional (bukan permanen), khususnya meningkat intensitasnya saat jalur alternatif (Lembah Anai/Malalak) terputus akibat bencana, yang mengalihkan seluruh volume kendaraan ke Sitinjau Lauik.
+Sumber: Dinas Perhubungan Provinsi Sumatera Barat, sebagaimana dipublikasikan RadarSumbar.com dan Langgam.id (Desember 2025 – Mei 2026)
+4. Kalibrasi Model Perhitungan Kepadatan dengan Data Lapangan
+Model perhitungan kepadatan pada sistem menggunakan formula kapasitas volumetrik ruas (KVR) berdasarkan data kajian pembimbing: jarak Gerbang A–Gerbang B sepanjang 16,5 km, dengan 65% segmen jalan hanya memuat 2 kendaraan berdampingan dan 35% segmen memuat 6 kendaraan berdampingan.
+KVR = (0,65 × 16.500 × 2) + (0,35 × 16.500 × 6) = 21.450 + 34.650 = 56.100 (satuan meter-kendaraan)
+Menggunakan data resmi pada Bagian 3.2 (LHR rata-rata 22.898 smp/hari, kecepatan rata-rata ≈ 42 km/jam), dilakukan simulasi perhitungan occupancy pada kondisi jam puncak (asumsi 10% dari LHR harian terjadi pada satu jam puncak — asumsi umum dalam rekayasa lalu lintas, belum berdasarkan data distribusi jam-per-jam Sitinjau Lauik secara spesifik):
+Waktu tempuh estimasi ruas: 16,5 km ÷ 42 km/jam ≈ 23,6 menit
+Flow kendaraan jam puncak: 22.898 × 10% ≈ 2.290 kendaraan/jam ≈ 38,2 kendaraan/menit
+Occupancy estimasi pada ruas (kondisi lancar, tanpa insiden): 38,2 × 23,6 ≈ 900 kendaraan
+Persentase kepadatan volumetrik (asumsi rata-rata mobil, 6 meter): (900 × 6) ÷ 56.100 × 100% ≈ 9,6%
+Hasil simulasi ini menunjukkan bahwa pada kondisi lalu lintas normal (tanpa insiden), kepadatan volumetrik murni berada jauh di bawah ambang batas “Padat” (50%) bahkan pada jam puncak — sekitar 9,6% dari kapasitas volumetrik ruas. Temuan ini konsisten dengan data kebijakan Dishub pada Bagian 3.4 dan data kecelakaan pada Bagian 3.3, yang keduanya mengindikasikan bahwa kemacetan riil di Sitinjau Lauik bersifat event-driven — dipicu oleh insiden lokal seperti kendaraan mogok/rem blong di tikungan atau tanjakan tajam — bukan disebabkan oleh kepadatan kendaraan yang merata sepanjang 16,5 km ruas jalan.
+Catatan metodologis: asumsi 10% LHR pada jam puncak adalah pendekatan umum, bukan data terukur khusus Sitinjau Lauik. Untuk kalibrasi lebih presisi, disarankan memperoleh data distribusi volume per jam (traffic count per jam) dari Dishub atau dari data logging sistem CCTV yang sedang dikembangkan sendiri, setelah berjalan minimal beberapa minggu.
+Implikasi bagi pengembangan sistem: formula kepadatan berbasis volume (single-variable) berpotensi kurang sensitif dalam mendeteksi kemacetan riil yang bersifat event-driven. Model perhitungan kepadatan direkomendasikan untuk dikembangkan menjadi pendekatan dua-variabel (hybrid density-speed), yang menggabungkan persentase volume dengan estimasi kecepatan rata-rata kendaraan hasil tracking kamera — sehingga penurunan kecepatan mendadak (indikasi kemacetan akibat insiden) dapat terdeteksi meski volume kendaraan secara keseluruhan masih rendah.
+5. Kesimpulan dan Rencana Tindak Lanjut
+Permasalahan deteksi motor yang kurang akurat pada model YOLOv8 akan ditangani melalui kombinasi migrasi ke arsitektur YOLO11 (peningkatan struktural untuk objek kecil) dan fine-tuning menggunakan dataset lokal hasil anotasi mandiri dari kamera Sitinjau Lauik.
+Evaluasi model akan dilengkapi dengan metrik mAP50-95, precision, recall, dan confusion matrix per kelas kendaraan yang dihitung khusus pada data validasi lokal, melengkapi metrik benchmark umum (COCO) yang telah dirangkum pada Bagian 2.3.
+Data resmi dan akademik pada Bagian 3 akan digunakan sebagai acuan kalibrasi lanjutan model perhitungan kepadatan, dengan rencana pengembangan model dua-variabel (volume + kecepatan) sebagaimana dijelaskan pada Bagian 4.
+Untuk data distribusi volume lalu lintas per jam (yang saat ini masih berupa asumsi umum 10% pada jam puncak), akan diupayakan permintaan data resmi langsung ke Dinas Perhubungan Provinsi Sumatera Barat, atau memanfaatkan data logging sistem CCTV sendiri setelah berjalan dalam jangka waktu yang cukup, guna meningkatkan presisi kalibrasi model.
+Referensi
+Balai Pelaksanaan Jalan Nasional Sumatera Barat, Kementerian PUPR. Informasi Publik — Data Kondisi Jalan dan Jembatan Nasional. binamarga.pu.go.id/balai-sumbar/konten/informasi-publik
+Badan Pusat Statistik Provinsi Sumatera Barat. (2025). Provinsi Sumatera Barat Dalam Angka 2025. sumbar.bps.go.id
+Dinas Perhubungan Provinsi Sumatera Barat, sebagaimana dikutip dalam: “Dishub Sumbar Perketat Lalu Lintas di Sitinjau Lauik Pascaputusnya Jalur Padang–Bukittinggi”, RadarSumbar.com, 5 Desember 2025.
+Dinas Perhubungan Provinsi Sumatera Barat, sebagaimana dikutip dalam: “Rawan Macet-Kecelakaan, Dishub Sumbar Akui Tak Ada Pembatasan Jam Truk Melintasi Sitinjau Lauik”, Langgam.id, 20 Mei 2026.
+Ma’arif, R. (2022). Studi Pengaruh Alinemen Vertikal terhadap Karakteristik Iringan Kendaraan. Skripsi D3 Teknik Sipil, Universitas Andalas. scholar.unand.ac.id/121266
+Ultralytics. Dokumentasi Resmi — YOLO11 vs YOLOv8 Comparison. docs.ultralytics.com/compare/yolo11-vs-yolov8
+Ultralytics. Dokumentasi Resmi — Explore Ultralytics YOLOv8. docs.ultralytics.com/models/yolov8
+Ultralytics. Dokumentasi Resmi — YOLO11 Model Configuration (yolo11.yaml). github.com/ultralytics/ultralytics
+Wahab, W., Roza, A., Ramadhani, M.F., & Yusnita, Y. (2023). Analisis Kecelakaan Lalu Lintas Ruas Jalan Padang-Solok dengan Metode Accident Rate. Jurnal Ilmiah Rekayasa Sipil (JIRS), 20(2), 234–243. https://doi.org/10.30630/jirs.v20i2.1216
+Catatan: dokumen ini disusun dengan bantuan asisten AI (Claude, Anthropic) untuk riset, penyusunan draf, dan kompilasi data. Seluruh data dan kutipan sumber disarankan untuk diverifikasi ulang secara independen oleh penyusun sebelum digunakan sebagai rujukan akademik formal.

@@ -1,0 +1,36 @@
+# =====================================================================
+# DEPENDENCIES - Sistem Deteksi Kemacetan Sitinjau Lauik
+# =====================================================================
+# Catatan instalasi PyTorch dengan CUDA (GPU NVIDIA):
+# File ini TIDAK menginstall torch dengan CUDA secara otomatis.
+# Anda WAJIB install torch terlebih dahulu secara terpisah mengikuti
+# panduan di docs/PANDUAN_SETUP.docx bagian "Instalasi PyTorch GPU",
+# BARU kemudian jalankan: pip install -r requirements.txt
+# =====================================================================
+
+# --- Computer Vision & Deep Learning ---
+ultralytics==8.3.40          # YOLOv8 + ByteTrack terintegrasi
+opencv-python==4.10.0.84     # Pemrosesan video & gambar
+numpy>=1.26.4                # Komputasi numerik (fleksibel untuk kompatibilitas Python 3.13+)
+
+# --- Konfigurasi ---
+PyYAML==6.0.2                 # Membaca config.yaml
+
+# --- Messaging (MQTT) ---
+paho-mqtt==2.1.0             # Client MQTT untuk kirim event ke broker
+
+# --- Database ---
+psycopg2-binary==2.9.10      # Driver PostgreSQL untuk Python
+
+# --- API Server & Dashboard ---
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+websockets==14.1
+python-multipart==0.0.20
+
+# --- Utilitas ---
+python-dotenv==1.0.1         # Manajemen environment variable (opsional, untuk kredensial sensitif)
+yt-dlp==2024.12.13            # Download video YouTube untuk simulasi (opsional)
+
+# --- Testing ---
+pytest==8.3.4

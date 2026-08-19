@@ -1,0 +1,180 @@
+# =====================================================================
+# KONFIGURASI GERBANG A — Sitinjau Lauik
+# Jl. Padang Basi (Titik Masuk dari Kota Padang)
+# =====================================================================
+# File ini adalah konfigurasi KHUSUS untuk Gerbang A.
+# Gunakan file ini saat menjalankan edge node Gerbang A:
+#     python src/main.py config/config_gerbang_a.yaml
+#
+# Perbedaan utama dari config.yaml default:
+#   - gerbang.id = "gerbang_a"
+#   - mqtt.client_id = "gerbang_a_edge" (unik per node)
+#   - tampilan.stream_port = 9001
+#   - rtsp_url sesuai kamera Gerbang A
+# =====================================================================
+
+# ---------------------------------------------------------------------
+# 1. SUMBER VIDEO — Gerbang A
+# ---------------------------------------------------------------------
+video_source:
+  # Ganti ke "file" jika kamera fisik belum siap dan ingin test dengan video
+  mode: "rtsp"
+
+  # Kamera IP Gerbang A — arahkan ke RTSP stream kamera di Jl. Padang Basi
+  rtsp_url: "rtsp://admin:lppm25upi@192.168.50.212:8554/Streaming/Channels/101"
+
+  # Fallback: path file video untuk testing lokal
+  file_path: "data/videos/test3.mp4"
+
+  # Resolusi pemrosesan (resize sebelum inferensi — lebih kecil = lebih cepat)
+  process_width: 960
+  process_height: 540
+
+# ---------------------------------------------------------------------
+# 2. IDENTITAS GERBANG A
+# ---------------------------------------------------------------------
+gerbang:
+  id: "gerbang_a"
+  nama: "Gerbang A - Jl. Padang Basi"
+  # Kamera menghadap ke arah Padang:
+  #   - Kendaraan menjauhi kamera (bergerak ke atas frame) = MASUK ke ruas
+  #   - Kendaraan mendekati kamera (bergerak ke bawah frame) = KELUAR dari ruas
+  menghadap: "ke_padang"
+
+# ---------------------------------------------------------------------
+# 2b. DAFTAR KAMERA AKTIF (multi-node schema)
+# ---------------------------------------------------------------------
+kamera:
+  - id: "gerbang_a"
+    gerbang: "A"
+    aktif: true
+    stream_port: 9001
+    rtsp_url: "rtsp://admin:lppm25upi@192.168.50.212:8554/Streaming/Channels/101"
+    counting_lines:
+      - id: "lajur_kiri"
+        arah: "masuk"
+        garis:
+          titik_1: [100, 400]
+          titik_2: [450, 400]
+        toleransi_piksel: 8
+        pixel_per_meter: 25.0
+      - id: "lajur_kanan"
+        arah: "keluar"
+        garis:
+          titik_1: [510, 400]
+          titik_2: [860, 400]
+        toleransi_piksel: 8
+        pixel_per_meter: 25.0
+  - id: "gerbang_b"
+    gerbang: "B"
+    aktif: false
+    stream_port: 9002
+    rtsp_url: null
+    counting_lines: []
+
+# ---------------------------------------------------------------------
+# 3. VIRTUAL COUNTING LINE — Gerbang A
+# ---------------------------------------------------------------------
+# WAJIB KALIBRASI ULANG setiap kali kamera dipindah atau sudut berubah.
+# Jalankan: python scripts/kalibrasi_garis.py config/config_gerbang_a.yaml
+#
+# Koordinat dalam piksel (relatif ke process_width x process_height = 960x540)
+# (Catatan: konfigurasi counting_lines dipindahkan ke dalam blok 'kamera' di v2)
+
+
+# ---------------------------------------------------------------------
+# 4. MODEL DETEKSI (YOLO) — sama di semua node
+# ---------------------------------------------------------------------
+model:
+  weights_path: "models/yolov8s.pt"
+  confidence_threshold: 0.15
+  iou_threshold: 0.45
+  device: "cuda"
+
+  # Mapping COCO class ID → kategori kendaraan lokal
+  coco_class_mapping:
+    2: "mobil"
+    3: "motor"
+    5: "bus"
+    7: "truk"
+
+# ---------------------------------------------------------------------
+# 5. TRACKER (ByteTrack)
+# ---------------------------------------------------------------------
+tracker:
+  type: "bytetrack.yaml"
+  track_buffer: 30
+
+# ---------------------------------------------------------------------
+# 6. PANJANG KENDARAAN (METER) — data dari kajian dosen
+# ---------------------------------------------------------------------
+panjang_kendaraan:
+  motor: 2.5
+  mobil: 6.0
+  bus: 14.0
+  truk: 12.0
+
+# ---------------------------------------------------------------------
+# 7. DATA RUAS JALAN (untuk kalkulasi KVR otomatis)
+# Gerbang A ke Gerbang B = 16.5 km (data dari dosen)
+# KVR = (0.65 × 16500 × 2) + (0.35 × 16500 × 6) = 56100 meter-lajur
+# ---------------------------------------------------------------------
+ruas_jalan:
+  panjang_meter: 16500
+  pct_segmen_sempit: 0.65
+  pct_segmen_lebar: 0.35
+  kapasitas_lateral_sempit: 2
+  kapasitas_lateral_lebar: 6
+  kecepatan_referensi_kmh: 42.0      # rata-rata riil (Studi Unand 2024)
+  lhr_estimasi_harian: 9000           # estimasi tidak resmi (jurnalistik)
+  radius_tikungan_sempit_m: 15.5      # tikungan Panorama 1 & 2
+
+# ---------------------------------------------------------------------
+# 8. SISTEM PAKAR
+# ---------------------------------------------------------------------
+sistem_pakar:
+  kapasitas_meter_lajur: 56100        # REFERENSI — dihitung ulang dari ruas_jalan
+
+  ambang_lancar: 50.0                 # ≤ 50% → LANCAR
+  ambang_padat: 75.0                  # 50–75% → PADAT, > 75% → MACET
+  ambang_kecepatan_lambat_kmh: 0.0    # DINONAKTIFKAN SEMENTARA untuk demo (menghindari flap karena kalibrasi piksel belum pas)
+  window_estimasi_menit: 30
+
+# ---------------------------------------------------------------------
+# 9. INTERVAL AGREGASI & MQTT — Gerbang A
+# ---------------------------------------------------------------------
+agregasi:
+  interval_detik: 20    # 20 detik untuk testing; naikkan ke 60 saat deploy live
+
+mqtt:
+  broker_host: "localhost"
+  broker_port: 1883
+  topic_prefix: "sitinjau_lauik"
+  client_id: "gerbang_a_edge"         # HARUS UNIK per node
+
+# ---------------------------------------------------------------------
+# 10. DATABASE — sama untuk semua node
+# ---------------------------------------------------------------------
+database:
+  host: "localhost"
+  port: 5432
+  name: "sitinjau_lauik_db"
+  user: "postgres"
+  password: "postgres123"
+
+# ---------------------------------------------------------------------
+# 11. TAMPILAN / DEBUG — Gerbang A
+# ---------------------------------------------------------------------
+tampilan:
+  tampilkan_window: true
+  tampilkan_garis_virtual: true
+  simpan_video_output: false
+  path_video_output: "data/logs/output_gerbang_a.mp4"
+  stream_port: 9001                   # Port MJPEG streaming Gerbang A
+
+# ---------------------------------------------------------------------
+# 12. LOGGING — Gerbang A (log terpisah per gerbang)
+# ---------------------------------------------------------------------
+logging:
+  level: "INFO"
+  file_path: "data/logs/gerbang_a.log"

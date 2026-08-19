@@ -1,0 +1,173 @@
+# =====================================================================
+# KONFIGURASI GERBANG B — Sitinjau Lauik
+# Jembatan Timbang Oto (Titik Keluar ke Solok / Arah Kabupaten)
+# =====================================================================
+# File ini SIAP PAKAI saat kamera Gerbang B sudah terpasang secara fisik.
+# Cara menjalankan:
+#     python src/main.py config/config_gerbang_b.yaml
+#
+# Status saat ini: BELUM AKTIF — kamera fisik belum terpasang.
+# Saat aktif nanti, mqtt_consumer.py akan otomatis menerima data dari
+# node ini dan beralih ke mode occupancy "flow_in_minus_out" yang lebih akurat.
+# =====================================================================
+
+# ---------------------------------------------------------------------
+# 1. SUMBER VIDEO — Gerbang B
+# ---------------------------------------------------------------------
+video_source:
+  # Ganti ke "rtsp" saat kamera sudah terpasang
+  # Sementara pakai "file" untuk testing dengan video simulasi
+  mode: "file"
+
+  # Isi dengan URL RTSP kamera Gerbang B saat sudah ada
+  # Format: rtsp://username:password@ip_kamera:port/path
+  rtsp_url: "rtsp://GANTI_IP_KAMERA_B:8554/Streaming/Channels/102"
+
+  # File video simulasi untuk testing Gerbang B
+  file_path: "data/videos/test3.mp4"
+
+  process_width: 960
+  process_height: 540
+
+# ---------------------------------------------------------------------
+# 2. IDENTITAS GERBANG B
+# ---------------------------------------------------------------------
+gerbang:
+  id: "gerbang_b"
+  nama: "Gerbang B - Jembatan Timbang Oto"
+  # Kamera menghadap ke arah Solok:
+  #   - Kendaraan menjauhi kamera = MASUK ke ruas (dari Solok ke Padang)
+  #   - Kendaraan mendekati kamera = KELUAR dari ruas (sudah melewati 16.5 km)
+  menghadap: "ke_solok"
+
+# ---------------------------------------------------------------------
+# 2b. DAFTAR KAMERA AKTIF — Gerbang B
+# ---------------------------------------------------------------------
+kamera:
+  - id: "gerbang_a"
+    gerbang: "A"
+    aktif: false
+    stream_port: 9001
+    rtsp_url: null
+    counting_lines: []
+  - id: "gerbang_b"
+    gerbang: "B"
+    aktif: true        # Gerbang B AKTIF di file ini
+    stream_port: 9002
+    rtsp_url: "rtsp://GANTI_IP_KAMERA_B:8554/Streaming/Channels/102"
+    counting_lines:
+      - id: "lajur_kiri"
+        arah: "masuk"
+        garis:
+          titik_1: [100, 400]
+          titik_2: [450, 400]
+        toleransi_piksel: 8
+        pixel_per_meter: 25.0
+      - id: "lajur_kanan"
+        arah: "keluar"
+        garis:
+          titik_1: [510, 400]
+          titik_2: [860, 400]
+        toleransi_piksel: 8
+        pixel_per_meter: 25.0
+
+# ---------------------------------------------------------------------
+# 3. VIRTUAL COUNTING LINE — Gerbang B
+# ---------------------------------------------------------------------
+# WAJIB KALIBRASI ULANG setelah kamera terpasang fisik di Gerbang B.
+# Nilai di bawah adalah PLACEHOLDER — tidak valid sebelum dikalibrasi.
+# Jalankan: python scripts/kalibrasi_garis.py config/config_gerbang_b.yaml
+# (Catatan: konfigurasi counting_lines dipindahkan ke dalam blok 'kamera' di v2)
+
+# ---------------------------------------------------------------------
+# 4. MODEL DETEKSI (YOLO) — sama di semua node
+# ---------------------------------------------------------------------
+model:
+  weights_path: "models/yolov8s.pt"
+  confidence_threshold: 0.15
+  iou_threshold: 0.45
+  device: "cuda"
+
+  coco_class_mapping:
+    2: "mobil"
+    3: "motor"
+    5: "bus"
+    7: "truk"
+
+# ---------------------------------------------------------------------
+# 5. TRACKER (ByteTrack)
+# ---------------------------------------------------------------------
+tracker:
+  type: "bytetrack.yaml"
+  track_buffer: 30
+
+# ---------------------------------------------------------------------
+# 6. PANJANG KENDARAAN (METER)
+# ---------------------------------------------------------------------
+panjang_kendaraan:
+  motor: 2.5
+  mobil: 6.0
+  bus: 14.0
+  truk: 12.0
+
+# ---------------------------------------------------------------------
+# 7. DATA RUAS JALAN
+# ---------------------------------------------------------------------
+ruas_jalan:
+  panjang_meter: 16500
+  pct_segmen_sempit: 0.65
+  pct_segmen_lebar: 0.35
+  kapasitas_lateral_sempit: 2
+  kapasitas_lateral_lebar: 6
+  kecepatan_referensi_kmh: 42.0
+  lhr_estimasi_harian: 9000
+  radius_tikungan_sempit_m: 15.5
+
+# ---------------------------------------------------------------------
+# 8. SISTEM PAKAR
+# ---------------------------------------------------------------------
+sistem_pakar:
+  kapasitas_meter_lajur: 56100
+  ambang_lancar: 50.0
+  ambang_padat: 75.0
+  ambang_kecepatan_lambat_kmh: 0.0
+  window_estimasi_menit: 30
+
+# ---------------------------------------------------------------------
+# 9. INTERVAL AGREGASI & MQTT — Gerbang B
+# ---------------------------------------------------------------------
+agregasi:
+  interval_detik: 20
+
+mqtt:
+  broker_host: "localhost"
+  broker_port: 1883
+  topic_prefix: "sitinjau_lauik"
+  client_id: "gerbang_b_edge"         # WAJIB BERBEDA dari Gerbang A
+
+# ---------------------------------------------------------------------
+# 10. DATABASE
+# ---------------------------------------------------------------------
+database:
+  host: "localhost"
+  port: 5432
+  name: "sitinjau_lauik_db"
+  user: "postgres"
+  password: "postgres123"
+
+# ---------------------------------------------------------------------
+# 11. TAMPILAN / DEBUG — Gerbang B
+# ---------------------------------------------------------------------
+tampilan:
+  tampilkan_window: true
+  tampilkan_garis_virtual: true
+  simpan_video_output: false
+  path_video_output: "data/logs/output_gerbang_b.mp4"
+  stream_port: 9002                   # Port MJPEG streaming Gerbang B (berbeda dari A)
+
+# ---------------------------------------------------------------------
+# 12. LOGGING — Gerbang B (log terpisah per gerbang)
+# ---------------------------------------------------------------------
+logging:
+  level: "INFO"
+  file_path: "data/logs/gerbang_b.log"

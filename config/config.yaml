@@ -1,0 +1,233 @@
+# =====================================================================
+# KONFIGURASI SISTEM DETEKSI KEMACETAN SITINJAU LAUIK
+# Prototipe 1 Kamera - Gerbang A
+# =====================================================================
+# File ini adalah SATU-SATUNYA tempat Anda perlu ubah pengaturan.
+# Jangan ubah nilai di dalam kode Python kecuali Anda paham dampaknya.
+#
+# Menjalankan proyek ini dengan AI code editor (Antigravity/Cursor/dsb)?
+# Baca AGENT_SETUP.md di root folder proyek - itu berisi instruksi
+# eksekusi langkah demi langkah yang dirancang khusus untuk AI agent.
+# =====================================================================
+
+# ---------------------------------------------------------------------
+# 1. SUMBER VIDEO (Pengaturan Global)
+# ---------------------------------------------------------------------
+video_source:
+  # Resolusi target untuk diproses (JANGAN samakan dengan resolusi asli video/kamera —
+  # ini untuk mempercepat inferensi; frame akan di-resize ke ukuran ini sebelum masuk model)
+  process_width: 960
+  process_height: 540
+
+# ---------------------------------------------------------------------
+# 2. DAFTAR KAMERA (Gerbang A dan Gerbang B)
+# ---------------------------------------------------------------------
+kamera:
+  - id: "gerbang_a"
+    nama: "Gerbang A - Jl. Padang Basi"
+    gerbang: "A"
+    source_type: "rtsp"          # rtsp | video_file
+    source: "${GERBANG_A_RTSP_URL}"   # dibaca dari .env, JANGAN hardcode
+    aktif: true
+    stream_port: 9001
+    counting_lines:
+      - id: "lajur_kiri"
+        arah: "masuk"              # menuju Solok
+        deskripsi: "Kendaraan dari Padang menuju Sitinjau Lauik"
+        garis:
+          titik_1: [0, 400]
+          titik_2: [450, 400]
+        toleransi_piksel: 10
+      - id: "lajur_kanan"
+        arah: "keluar"             # dari arah Solok menuju Padang
+        deskripsi: "Kendaraan dari Solok menuju Padang (keluar ruas di titik A)"
+        garis:
+          titik_1: [510, 400]
+          titik_2: [960, 400]
+        toleransi_piksel: 10
+
+  - id: "gerbang_b"
+    nama: "Gerbang B - Jembatan Timbang Solok"
+    gerbang: "B"
+    source_type: "video_file"     # ganti ke "rtsp" setelah kamera fisik terpasang
+    source: "E:\\LPPM\\sitinjau-lauik-cv\\data\\videos\\test3.mp4"
+    aktif: true
+    stream_port: 9002
+    counting_lines:
+      - id: "lajur_kiri"
+        arah: "masuk"              # menuju Padang (dari arah Solok)
+        deskripsi: "Kendaraan dari Solok menuju Sitinjau Lauik"
+        garis:
+          titik_1: [0, 400]
+          titik_2: [450, 400]
+        toleransi_piksel: 10
+      - id: "lajur_kanan"
+        arah: "keluar"             # dari arah Padang menuju Solok
+        deskripsi: "Kendaraan dari Padang menuju Solok (keluar ruas di titik B)"
+        garis:
+          titik_1: [510, 400]
+          titik_2: [960, 400]
+        toleransi_piksel: 10
+
+# ---------------------------------------------------------------------
+# 3. DEFINISI LAJUR & VIRTUAL COUNTING LINE
+# ---------------------------------------------------------------------
+# PENTING: koordinat garis ini HARUS disesuaikan manual untuk tiap pemasangan
+# kamera yang berbeda, karena sudut pandang kamera tidak pernah identik.
+# Gunakan scripts/kalibrasi_garis.py untuk menentukan titik ini secara visual.
+#
+# Koordinat dalam skala piksel relatif terhadap process_width x process_height di atas.
+# Setiap garis didefinisikan oleh 2 titik: [x1,y1] dan [x2,y2]
+
+# Bagian 'lajur' global dihapus karena koordinat garis sudah didefinisikan secara spesifik
+# per kamera di bagian 'kamera.counting_lines' di atas.
+
+# ---------------------------------------------------------------------
+# 4. MODEL DETEKSI (YOLO)
+# ---------------------------------------------------------------------
+model:
+  # Path ke file model. Untuk mulai cepat pakai model pretrained COCO bawaan Ultralytics.
+  # Nanti idealnya di-fine-tune dengan data lokal Indonesia (motor sangat dominan, beda proporsi dgn COCO).
+  weights_path: "models/yolov8s.pt"
+
+  # Ambang kepercayaan minimal deteksi (0-1). Naikkan jika banyak false positive,
+  # turunkan jika banyak kendaraan tidak terdeteksi.
+  confidence_threshold: 0.10
+
+  # IoU threshold untuk Non-Max Suppression
+  iou_threshold: 0.45
+
+  # Device inferensi: "cuda" jika ada NVIDIA GPU (kasus Anda), "cpu" jika tidak
+  device: "cuda"
+
+  # Mapping kelas COCO (default YOLOv8) ke kategori kendaraan yang kita pakai.
+  # ID kelas COCO standar: 2=car, 3=motorcycle, 5=bus, 7=truck
+  # (Catatan: COCO tidak punya kelas "minibus" terpisah — sesuai keputusan dokumen final,
+  #  minibus dikelompokkan sebagai "mobil")
+  coco_class_mapping:
+    2: "mobil"
+    3: "motor"
+    5: "bus"
+    7: "truk"
+
+# ---------------------------------------------------------------------
+# 5. TRACKER (ByteTrack)
+# ---------------------------------------------------------------------
+tracker:
+  # Ultralytics sudah menyediakan config ByteTrack bawaan, biasanya tidak perlu diubah
+  type: "bytetrack.yaml"
+  # Berapa frame maksimal sebuah track "hilang" sebelum dianggap keluar dari frame
+  track_buffer: 30
+
+# ---------------------------------------------------------------------
+# 6. PANJANG KENDARAAN (METER)
+# ---------------------------------------------------------------------
+panjang_kendaraan:
+  motor: 2.5
+  mobil: 6.0
+  bus: 14.0
+  truk: 12.0
+
+# ---------------------------------------------------------------------
+# 7. DATA RUAS JALAN (parameter untuk kalkulasi kapasitas volumetrik)
+# Kapasitas dihitung OTOMATIS dari parameter ini saat startup,
+# tidak perlu diisi manual di bawah (lihat sistem_pakar.kapasitas_meter_lajur).
+#
+# Referensi data dosen:
+#   KVR = (0.65 × 16500 × 2) + (0.35 × 16500 × 6)
+#       = 21450 + 34650 = 56100 meter-lajur
+# ---------------------------------------------------------------------
+ruas_jalan:
+  panjang_meter: 16500          # Panjang ruas Gerbang A - Gerbang B (16.5 km)
+  pct_segmen_sempit: 0.65       # 65% ruas hanya muat 2 kendaraan berdampingan
+  pct_segmen_lebar: 0.35        # 35% ruas muat 6 kendaraan berdampingan
+  kapasitas_lateral_sempit: 2   # kapasitas lateral (unit kendaraan) segmen sempit
+  kapasitas_lateral_lebar: 6    # kapasitas lateral (unit kendaraan) segmen lebar
+  #
+  # Referensi lapangan (dari studi Univ. Andalas + Dishub):
+  kecepatan_referensi_kmh: 42.0   # rata-rata riil 37.7-45.4 km/jam (Studi Unand)
+  lhr_estimasi_harian: 9000        # LHR ~9000/hari (estimasi jurnalistik, TIDAK resmi)
+  radius_tikungan_sempit_m: 15.5   # radius tikungan tersempit di Panorama 1 & 2
+
+# ---------------------------------------------------------------------
+# 8. SISTEM PAKAR
+# Catatan: kapasitas_meter_lajur tidak lagi diisi manual —
+# dihitung otomatis dari ruas_jalan di atas saat startup.
+# Nilai 56100 di bawah sebagai referensi saja (hasil hitungan manual).
+# ---------------------------------------------------------------------
+sistem_pakar:
+  # kapasitas_meter_lajur tidak lagi di-hardcode,
+  # nilainya dihitung otomatis pada startup menggunakan parameter ruas_jalan.
+
+
+  # Threshold status jalan (dalam persen kepadatan volumetrik):
+  # ≤ ambang_lancar  → LANCAR
+  # ≤ ambang_padat   → PADAT
+  # > ambang_padat   → MACET
+  # (sesuai data dosen dan MKJI)
+  ambang_lancar: 50.0
+  ambang_padat: 75.0
+
+  # Threshold kecepatan untuk override status ke MACET (km/jam).
+  # Jika kecepatan rata-rata di bawah nilai ini, status = MACET
+  # terlepas dari kepadatan volumetrik (karena kemacetan Sitinjau Lauik
+  # bersifat event-driven, bukan volume-based).
+  # Catatan: fitur ini baru aktif jika ada data kecepatan dari kamera.
+  ambang_kecepatan_lambat_kmh: 0.0
+
+  # Durasi window estimasi occupancy untuk mode flow_x_traveltime (menit).
+  # Harus konsisten dengan interval_detik di section agregasi di bawah.
+  window_estimasi_menit: 30
+
+# ---------------------------------------------------------------------
+# 9. INTERVAL AGREGASI & MQTT
+# ---------------------------------------------------------------------
+agregasi:
+  # Untuk testing lokal dengan video file, 20 detik lebih praktis supaya
+  # Anda cepat melihat hasil di dashboard tanpa menunggu lama.
+  # Saat nanti migrasi ke kamera real 24/7, naikkan kembali ke 60 (1 menit)
+  # sesuai rekomendasi dokumen blueprint asli.
+  interval_detik: 20
+
+mqtt:
+  broker_host: "localhost"
+  broker_port: 1883
+  topic_prefix: "sitinjau_lauik"
+  client_id: "gerbang_a_edge"
+
+# ---------------------------------------------------------------------
+# 10. DATABASE
+# ---------------------------------------------------------------------
+database:
+  host: "localhost"
+  port: 5432
+  name: "sitinjau_lauik_db"
+  user: "postgres"
+  password: "postgres123"
+
+# ---------------------------------------------------------------------
+# 11. TAMPILAN / DEBUG
+# ---------------------------------------------------------------------
+tampilan:
+  # Tampilkan jendela video hasil deteksi secara live (matikan jika jalankan di server tanpa GUI)
+  tampilkan_window: false
+  tampilkan_garis_virtual: true
+  simpan_video_output: false
+  path_video_output: "data/logs/output_deteksi.mp4"
+
+  # Port untuk MJPEG streaming video (dipakai dashboard Live Camera Feeds).
+  # Gerbang A pakai 9001, Gerbang B pakai 9002 (sesuai konfigurasi di config_gerbang_b.yaml).
+  # Set ke null atau hapus baris ini untuk menonaktifkan streaming.
+  stream_port: 9001
+
+# ---------------------------------------------------------------------
+# 12. LOGGING
+# ---------------------------------------------------------------------
+logging:
+  # Level logging: DEBUG | INFO | WARNING | ERROR
+  # Gunakan DEBUG untuk troubleshooting, INFO untuk operasi normal.
+  level: "INFO"
+
+  # Path file log relatif terhadap root folder proyek.
+  # Log dirotasi setiap tengah malam, disimpan 7 hari terakhir.
+  file_path: "data/logs/sistem.log"

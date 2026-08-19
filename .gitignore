@@ -1,0 +1,30 @@
+# Environment & kredensial
+.env
+
+# Virtual environment Python
+venv/
+env/
+.venv/
+
+# Cache Python
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Video & data besar (jangan commit video mentah ke Git)
+data/videos/*.mp4
+data/videos/*.avi
+data/logs/*.mp4
+data/logs/*.log
+
+# Model weights (biasanya besar, download terpisah)
+models/*.pt
+models/*.tflite
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

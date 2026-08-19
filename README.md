@@ -1,76 +1,114 @@
-# Sistem Deteksi Kemacetan Sitinjau Lauik — Prototipe 1 Kamera
+# AI-Powered Traffic Monitoring System (Sitinjau Lauik)
 
-Prototipe sistem deteksi, penghitungan, dan klasifikasi kemacetan lalu lintas
-di ruas Sitinjau Lauik (Padang–Solok), menggunakan computer vision (YOLOv8 +
-ByteTrack) dan sistem pakar rule-based sesuai standar MKJI.
+Sistem ini adalah solusi cerdas terintegrasi berbasis Computer Vision (AI) dan Internet of Things (IoT) untuk mendeteksi, menghitung, dan menganalisis tingkat kemacetan lalu lintas secara *real-time* di ruas jalan ekstrem Sitinjau Lauik (Padang - Solok).
 
-> **Status saat ini:** kamera fisik sedang bermasalah, sistem dikonfigurasi
-> default untuk berjalan dari **video file lokal** (mode `"file"` di
-> `config.yaml`). Taruh video traffic Anda di `data/videos/traffic.mp4`.
-> Migrasi ke kamera RTSP nanti tinggal ganti 2 baris di `config.yaml` —
-> lihat komentar di file itu atau Tahap 5B di `AGENT_SETUP.md`.
+Sistem ini dirancang dengan arsitektur **Microservices / Event-Driven (MQTT)** yang memisahkan antara proses deteksi berat di ujung (*Edge AI*) dengan proses analitik dan penyajian data di Pusat (*Core Server*), sehingga sistem menjadi *scalable*, tangguh (*robust*), dan berstandar industri.
 
-**Untuk panduan setup lengkap langkah demi langkah, buka `docs/PANDUAN_SETUP.docx`.**
+---
 
-**Menjalankan dengan AI code editor (Antigravity, Cursor, Windsurf, dsb)?**
-Buka proyek ini di editor Anda, lalu minta AI agent untuk membaca dan
-mengikuti `AGENT_SETUP.md` — file itu berisi instruksi eksekusi terstruktur
-dengan kriteria sukses di tiap tahap, dirancang khusus supaya AI agent bisa
-menjalankan setup secara mandiri dan memverifikasi setiap langkah sebelum lanjut.
-Versi terbaru sudah disesuaikan untuk alur video file (bukan kamera).
+## 1. Arsitektur Sistem (Clean Architecture)
 
-## Struktur Folder
+Sistem dibagi menjadi 4 layer utama yang saling lepas (*decoupled*):
 
+1. **Edge AI Layer (`src/main.py`, `src/detector.py`)**
+   - Berjalan di perangkat lokal di lapangan (misal Jetson Nano / PC).
+   - Membaca RTSP stream dari IP Camera atau video lokal.
+   - Melakukan deteksi objek (YOLOv8) dan pelacakan (ByteTrack).
+   - Menghitung kendaraan yang melewati *Virtual Counting Line*.
+   - Mengagregasi data setiap 20 detik dan mengirimkannya via protokol MQTT.
+2. **Transport Layer (MQTT Broker)**
+   - Berfungsi sebagai jembatan komunikasi yang sangat ringan dan cepat.
+   - Menggunakan Mosquitto MQTT. Topik: `sitinjau_lauik/{gerbang_id}/agregasi`.
+3. **Core Server Layer (`src/mqtt_consumer.py`, `src/sistem_pakar.py`, `src/database.py`)**
+   - Berjalan di cloud atau server pusat.
+   - Menerima pesan MQTT dari banyak gerbang secara bersamaan.
+   - Menyimpan raw data ke PostgreSQL.
+   - Menghitung *Occupancy* (kepadatan ruas) menggunakan algoritma selisih antar gerbang.
+   - Menjalankan **Sistem Pakar (Rule-based)** untuk menentukan status (LANCAR/PADAT/MACET).
+4. **Presentation Layer (`src/api_server.py`, `dashboard/`)**
+   - REST API (FastAPI) dan antarmuka web modern.
+   - Menggunakan **WebSocket** (`/ws/live`) untuk mendorong (push) data metrik secara *real-time* ke browser klien tanpa membebani server dengan *polling*.
+
+---
+
+## 2. Metodologi, Rumus, dan Logika Perhitungan
+
+Agar *AI Engine* di masa depan (Claude/GLM) dapat menganalisis dan meningkatkan sistem ini, berikut adalah landasan matematis yang digunakan:
+
+### A. Deteksi & Tracking (Computer Vision)
+- **Model:** YOLOv8 (Ultralytics) untuk Object Detection (terkalibrasi untuk kelas: Motor, Mobil, Bus, Truk).
+- **Tracker:** ByteTrack untuk melacak pergerakan (*trajectory*) dan ID kendaraan antar *frame* agar tidak terjadi perhitungan ganda (*double counting*).
+- **Penghitungan Garis (Line Crossing):** Vektor pergerakan dihitung dengan *dot product* dan penyeberangan dideteksi ketika titik pusat *bounding box* memotong garis virtual (*Point-Line Position*).
+
+### B. Kapasitas Volumetrik Ruas (KVR)
+Kapasitas jalan tidak dihitung per lajur standar, melainkan menggunakan spesifikasi lebar jalan ekstrem Sitinjau Lauik.
+**Rumus:**
+```math
+KVR = (Panjang \times \%_{Sempit} \times Kap_{Sempit}) + (Panjang \times \%_{Lebar} \times Kap_{Lebar})
 ```
-sitinjau-lauik-cv/
-├── AGENT_SETUP.md            ← Instruksi eksekusi untuk AI code editor
-├── config/
-│   └── config.yaml          ← SATU-SATUNYA file yang perlu Anda edit untuk konfigurasi
-├── src/
-│   ├── config_loader.py     ← Memuat config.yaml
-│   ├── counting_line.py     ← Logika inti: garis hitung virtual
-│   ├── detector.py          ← YOLO + ByteTrack + integrasi counting line
-│   ├── event_publisher.py   ← Kirim event ke MQTT broker
-│   ├── main.py               ← ENTRY POINT EDGE (jalankan ini pertama)
-│   ├── database.py          ← Operasi PostgreSQL
-│   ├── mqtt_consumer.py     ← ENTRY POINT SERVER (proses kedua)
-│   ├── api_server.py        ← ENTRY POINT DASHBOARD (proses ketiga)
-│   └── sistem_pakar.py      ← Logika klasifikasi lancar/padat/macet
-├── scripts/
-│   ├── kalibrasi_garis.py       ← Bantuan menentukan garis virtual secara visual
-│   ├── download_video_youtube.py ← Bantuan download video simulasi (opsional)
-│   └── setup_database.sql        ← Schema & seed data database
-├── tests/
-│   ├── test_counting_line.py     ← Unit test logika penghitungan
-│   └── test_sistem_pakar.py      ← Unit test sistem pakar
-├── dashboard/
-│   └── index.html            ← Dashboard web untuk demo
-├── models/                   ← Tempat menyimpan file model YOLO (.pt)
-├── data/videos/               ← TARUH video traffic.mp4 Anda di sini
-├── data/logs/                 ← Output video hasil deteksi (opsional)
-├── requirements.txt
-├── .env.example
-└── docs/
-    └── PANDUAN_SETUP.docx    ← PANDUAN LENGKAP - MULAI DARI SINI
+*Contoh:* Untuk jalan 16.5km, dengan 65% area sempit (muat 2 mobil) dan 35% area lebar (muat 6 mobil), KVR diukur dalam satuan *meter-lajur*.
+
+### C. Volume Aktual Kendaraan (Meter-Lajur)
+Mengonversi jumlah kendaraan mentah menjadi bobot panjangnya.
+**Rumus:**
+```math
+Volume = \sum (Jumlah_{Kelas} \times Panjang_{Kelas})
 ```
+*(Asumsi panjang: Motor=2.5m, Mobil=6.0m, Truk=12.0m, Bus=14.0m).*
 
-## Ringkasan Cara Pakai (detail ada di PANDUAN_SETUP.docx atau AGENT_SETUP.md)
+### D. Estimasi Occupancy (Selisih Kumulatif Dual Gerbang)
+Karena ruas Sitinjau Lauik merupakan *closed-system* panjang tanpa banyak persimpangan besar, kepadatan di tengah hutan diestimasi murni dari ujung-ujungnya.
+**Rumus:**
+```math
+Occupancy = (Masuk_A + Masuk_B) - (Keluar_A + Keluar_B)
+```
+*(Catatan: Rumus ini menggunakan akumulasi reset harian untuk mencegah drift jangka panjang).*
 
-1. Install semua dependency (`pip install -r requirements.txt`)
-2. Setup PostgreSQL (sudah ada) & Mosquitto MQTT broker (perlu diinstall)
-3. Taruh video traffic Anda di `data/videos/traffic.mp4`
-4. Kalibrasi garis virtual: `python scripts/kalibrasi_garis.py`
-5. Jalankan 3 proses di 3 terminal terpisah:
-   - `python src/main.py` (edge - deteksi dari video file, otomatis loop saat habis)
-   - `python src/mqtt_consumer.py` (server - agregasi & sistem pakar)
-   - `python src/api_server.py` (dashboard - buka http://localhost:8000)
-6. Jalankan test: `pytest tests/ -v`
+### E. Kepadatan dan Level of Service (LOS)
+**Rumus:**
+```math
+Kepadatan (\%) = \frac{Volume Aktual}{KVR} \times 100
+```
+**Skala LOS:**
+- A: $\le 25\%$ (Sangat Lancar)
+- B: $26\% - 50\%$ (Lancar)
+- C: $51\% - 60\%$ (Sedang)
+- D: $61\% - 75\%$ (Padat)
+- E: $76\% - 90\%$ (Sangat Padat / Merayap)
+- F: $> 90\%$ (Macet Total)
 
-## Status Proyek
+### F. Sistem Pakar (Hybrid Rules)
+Status akhir ditentukan oleh kepadatan. Namun, ada aturan khusus (Override):
+**IF** (Kecepatan Rata-rata < Ambang Batas [mis. 15 km/h]) **THEN** Status = MACET.
+*(Kondisi ini berguna karena kemacetan gunung biasanya disebabkan oleh 1 truk patah as / mogok yang langsung membuat kecepatan menjadi 0, meskipun kepadatan volumetriknya secara total masih rendah).*
 
-Ini prototipe **1 kamera / 1 gerbang (Gerbang A)**, saat ini berjalan dari
-**video file** (bukan kamera fisik) karena kamera sedang bermasalah.
-Occupancy yang dihitung adalah selisih masuk-keluar di gerbang yang sama —
-bukan occupancy ruas jalan penuh. Untuk versi 2 gerbang penuh dan migrasi ke
-kamera RTSP, lihat catatan pengembangan lanjutan di `src/mqtt_consumer.py`,
-`AGENT_SETUP.md` Tahap 5B, dan bagian akhir `PANDUAN_SETUP.docx`.
+---
+
+## 3. Evaluasi Sistem (Kelebihan & Kekurangan)
+
+Sistem ini sangat transparan. Berikut adalah analisis pro dan kontra untuk pertimbangan perbaikan *AI Engineer* berikutnya:
+
+### Kelebihan (Pros)
+1. **Industri-Standar & Clean Code:** Kode berbasis OOP dan functional, di-tipe dengan kuat (*Type Hinting*), penanganan error (`try-except`) yang aman, dan koneksi PostgreSQL yang *auto-reconnect*.
+2. **Highly Scalable (Event-Driven):** MQTT memungkinkan penambahan Gerbang C, D, atau E tanpa harus membongkar kode server pusat.
+3. **Efisiensi Bandwidth:** *Edge* tidak mengirim *streaming* video HD ke server pusat, melainkan hanya mengirim _string JSON_ ringan setiap 20 detik. Ini sangat cocok untuk kondisi sinyal gunung yang lemah.
+4. **Performa Real-time:** Dashboard menggunakan WebSocket dan FastAPI, data muncul instan.
+
+### Kekurangan & Tantangan (Cons) - *Area for Improvement*
+1. **Akurasi Kecepatan Lemah (Perspective Distortion):** Saat ini kecepatan dihitung menggunakan pendekatan 2D piksel per meter sederhana (`pixel_dist / pixel_per_meter`). Hal ini menyebabkan *error* besar karena kamera memiliki efek perspektif (kendaraan di kejauhan tampak bergerak lebih lambat di piksel).
+   > *Saran Perbaikan:* Implementasikan *Perspective Transform (Bird's Eye View)* menggunakan Matriks Homografi dengan kalibrasi 4 titik di aspal.
+2. **Risiko Drift Occupancy:** Jika detektor gagal mengenali 1 mobil yang keluar, angka *Occupancy* di dalam ruas akan tersangkut (bertambah 1 hantu) selamanya sampai di-reset di tengah malam.
+   > *Saran Perbaikan:* Gunakan sistem pembacaan Plat Nomor (ALPR) probabilistik, atau gunakan kalibrasi ulang berkala menggunakan analisis spasial jika kepadatan sudah terlalu jauh melenceng.
+3. **Model YOLO Bawaan COCO:** Model YOLO yang digunakan saat ini belum dilatih ulang (*fine-tuned*) untuk klasifikasi khas Indonesia (seperti Odong-odong, Truk Tronton ODOL, Angkot).
+   > *Saran Perbaikan:* Kumpulkan ribuan gambar dari Sitinjau Lauik, lalu *fine-tune* model menggunakan `scripts/fine_tune.py`.
+
+---
+
+## 4. Struktur Database (PostgreSQL)
+Sistem menggunakan skema yang dinormalisasi:
+- `gerbang_kamera`: Menyimpan daftar kamera fisik beserta IP dan Status operasional.
+- `hitungan_kendaraan`: *Time-series data* mentah jumlah kendaraan masuk/keluar per kelas per interval waktu.
+- `status_ruas`: Tabel log hasil evaluasi Sistem Pakar (Kepadatan, Volume, LOS, Status) per titik waktu.
+
+---
+*Dokumentasi ini disiapkan untuk transisi secara mulus kepada tim pengembang lanjutan atau Analis AI berikutnya. Happy Coding!*

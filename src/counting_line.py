@@ -22,19 +22,30 @@ Kenapa perlu cek "belum pernah dihitung"?
 
 import time
 from dataclasses import dataclass, field
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
+
+# Ambang histeresis sisi garis — Tahap 7: mencegah jitter piksel kecil
+# di sekitar garis memicu event double-count.
+# Unit: nilai cross-product 2D (bergantung skala frame).
+# Mulai dari 3.0, sesuaikan berdasar observasi log real.
+AMBANG_HISTERESIS_SISI = 3.0
 
 
 @dataclass
 class GarisVirtual:
     """Representasi satu garis hitung virtual untuk satu lajur."""
 
-    line_id: str
+    lajur_id: str
     arah: str  # "masuk" atau "keluar"
     titik_1: Tuple[float, float]
     titik_2: Tuple[float, float]
     toleransi_piksel: float = 8.0
     pixel_per_meter: float = 25.0
+
+    # Alias untuk backward compatibility dengan kode yang memakai 'line_id'
+    @property
+    def line_id(self) -> str:
+        return self.lajur_id
 
     def sisi_titik(self, x: float, y: float) -> float:
         """
@@ -67,6 +78,36 @@ class GarisVirtual:
         return -margin_t <= t <= 1 + margin_t
 
 
+def _estimasi_laju_least_squares(histori: List[Tuple[float, float]]) -> Optional[float]:
+    """
+    Estimasi laju perubahan posisi (piksel/detik) dari histori
+    (posisi_y, timestamp) memakai regresi linear least-squares
+    sederhana — jauh lebih tahan noise dibanding metode titik-awal
+    vs titik-akhir saja, karena memakai seluruh histori yang ada.
+
+    Return None jika data tidak cukup (< 2 titik atau variansi
+    waktu nol).
+    """
+    n = len(histori)
+    if n < 2:
+        return None
+
+    ys = [p[0] for p in histori]
+    ts = [p[1] for p in histori]
+
+    t_mean = sum(ts) / n
+    y_mean = sum(ys) / n
+
+    numerator = sum((t - t_mean) * (y - y_mean) for t, y in zip(ts, ys))
+    denominator = sum((t - t_mean) ** 2 for t in ts)
+
+    if denominator == 0:
+        return None
+
+    slope_piksel_per_detik = numerator / denominator
+    return slope_piksel_per_detik
+
+
 class PelacakLintasGaris:
     """
     Menyimpan state per track_id untuk mendeteksi kapan sebuah
@@ -91,11 +132,11 @@ class PelacakLintasGaris:
         events = []
         waktu_sekarang = time.time()
 
-        # Simpan riwayat pergerakan (maks 30 titik untuk hemat memori)
+        # Simpan riwayat pergerakan (maks 50 titik untuk regresi lebih stabil)
         if track_id not in self._track_history:
             self._track_history[track_id] = []
         self._track_history[track_id].append((y_center, waktu_sekarang))
-        if len(self._track_history[track_id]) > 30:
+        if len(self._track_history[track_id]) > 50:  # dinaikkan dari 30 ke 50 (Tahap 3)
             self._track_history[track_id].pop(0)
 
         for garis in self.daftar_garis:
@@ -112,27 +153,40 @@ class PelacakLintasGaris:
 
             sisi_sebelumnya = self._sisi_terakhir[key]
 
-            if sisi_sebelumnya * sisi_sekarang < 0 and garis.dalam_rentang_segmen(
-                x_center, y_center
+            # Tahap 7: histeresis untuk mencegah jitter piksel memicu event
+            # Syarat: kedua sisi harus melewati AMBANG_HISTERESIS_SISI
+            if (
+                sisi_sebelumnya * sisi_sekarang < 0
+                and abs(sisi_sekarang) > AMBANG_HISTERESIS_SISI
+                and abs(sisi_sebelumnya) > AMBANG_HISTERESIS_SISI
+                and garis.dalam_rentang_segmen(x_center, y_center)
             ):
-                # Objek berpindah sisi -> dianggap melewati garis
-                
-                # Hitung kecepatan
-                speed_kmh = None
                 hist = self._track_history[track_id]
-                if len(hist) > 1:
-                    y_lama, t_lama = hist[0]
-                    y_baru, t_baru = hist[-1]
-                    delta_t = t_baru - t_lama
-                    pixel_dist = abs(y_baru - y_lama)
-                    
-                    if delta_t > 0 and garis.pixel_per_meter > 0:
-                        speed_ms = (pixel_dist / garis.pixel_per_meter) / delta_t
+
+                # Tahap 7: validasi arah konsisten sebelum mencatat event
+                # Gunakan least-squares dari Tahap 3 untuk cek konsistensi arah
+                MINIMAL_TITIK_VALIDASI_ARAH = 5
+                if len(hist) >= MINIMAL_TITIK_VALIDASI_ARAH:
+                    laju = _estimasi_laju_least_squares(hist)
+                    arah_perpindahan_sisi = sisi_sekarang - sisi_sebelumnya
+                    if laju is not None and (laju * arah_perpindahan_sisi) < 0:
+                        # Arah tidak konsisten — kemungkinan noise/U-turn sesaat
+                        # Update sisi tapi JANGAN catat event, tunggu konfirmasi
+                        self._sisi_terakhir[key] = sisi_sekarang
+                        continue
+
+                # Hitung kecepatan dengan least-squares (Tahap 3)
+                speed_kmh = None
+                MINIMAL_TITIK_UNTUK_KECEPATAN = 5
+                if len(hist) >= MINIMAL_TITIK_UNTUK_KECEPATAN:
+                    laju_piksel_per_detik = _estimasi_laju_least_squares(hist)
+                    if laju_piksel_per_detik is not None and garis.pixel_per_meter > 0:
+                        speed_ms = abs(laju_piksel_per_detik) / garis.pixel_per_meter
                         speed_kmh = speed_ms * 3.6
-                
+
                 events.append(
                     {
-                        "line_id": garis.line_id,
+                        "lajur_id": garis.lajur_id,
                         "arah": garis.arah,
                         "track_id": track_id,
                         "kecepatan_kmh": speed_kmh

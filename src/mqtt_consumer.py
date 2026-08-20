@@ -36,8 +36,10 @@ Perbaikan v3 (Blueprint Perbaikan):
 
 import json
 import sys
+import threading
 import time
 from collections import defaultdict
+from datetime import datetime
 from pathlib import Path
 
 # Tambah root proyek ke sys.path agar import 'src.*' bekerja
@@ -51,6 +53,7 @@ import paho.mqtt.client as mqtt
 from src.config_loader import load_config
 from src.database import Database
 from src.logger import setup_logging, get_logger
+from src.mkji import evaluasi_mkji
 from src.sistem_pakar import evaluasi
 from src.occupancy_estimator import (
     hitung_occupancy_ruas,
@@ -67,8 +70,66 @@ kumulatif_gerbang_b_keluar = defaultdict(int)
 
 
 def recover_occupancy_dari_db(db: Database) -> None:
-    # TODO: Implement multi-gerbang recovery if needed
-    pass
+    """
+    Memulihkan state kumulatif in-memory dari database saat proses
+    consumer baru start/restart, supaya occupancy tidak mulai dari
+    0 secara keliru.
+    """
+    global kumulatif_gerbang_a_masuk, kumulatif_gerbang_a_keluar
+    global kumulatif_gerbang_b_masuk, kumulatif_gerbang_b_keluar
+
+    try:
+        data = db.ambil_kumulatif_masuk_keluar_per_gerbang(sejak_jam=24)
+    except Exception as e:
+        logger.error(f"[Recovery] Gagal memulihkan occupancy dari DB: {e}. Mulai dari 0.")
+        return
+
+    for kelas, jumlah in data.get("gerbang_a_masuk", {}).items():
+        kumulatif_gerbang_a_masuk[kelas] = jumlah
+    for kelas, jumlah in data.get("gerbang_a_keluar", {}).items():
+        kumulatif_gerbang_a_keluar[kelas] = jumlah
+    for kelas, jumlah in data.get("gerbang_b_masuk", {}).items():
+        kumulatif_gerbang_b_masuk[kelas] = jumlah
+    for kelas, jumlah in data.get("gerbang_b_keluar", {}).items():
+        kumulatif_gerbang_b_keluar[kelas] = jumlah
+
+    total_recovered = sum(kumulatif_gerbang_a_masuk.values()) + sum(kumulatif_gerbang_b_masuk.values())
+    logger.info(
+        f"[Recovery] State occupancy dipulihkan dari DB: "
+        f"A_masuk={dict(kumulatif_gerbang_a_masuk)} | A_keluar={dict(kumulatif_gerbang_a_keluar)} | "
+        f"B_masuk={dict(kumulatif_gerbang_b_masuk)} | B_keluar={dict(kumulatif_gerbang_b_keluar)} | "
+        f"Total unit dipulihkan: {total_recovered}"
+    )
+
+
+def _hitung_detik_ke_tengah_malam() -> float:
+    """Hitung detik hingga tengah malam hari ini."""
+    sekarang = datetime.now()
+    tengah_malam = sekarang.replace(hour=0, minute=0, second=0, microsecond=0)
+    # Jika sudah lewat tengah malam hari ini, hitung ke tengah malam besok
+    delta = (tengah_malam - sekarang).total_seconds()
+    if delta <= 0:
+        delta += 86400  # tambah 1 hari (86400 detik)
+    return delta
+
+
+def _jadwalkan_reset_harian():
+    """
+    Scheduler ringan dengan threading.Timer yang me-reset ke-4 dictionary
+    kumulatif ke 0 setiap pukul 00:00 waktu lokal.
+    Menjadwalkan ulang dirinya sendiri setiap kali dipanggil.
+    """
+    global kumulatif_gerbang_a_masuk, kumulatif_gerbang_a_keluar
+    global kumulatif_gerbang_b_masuk, kumulatif_gerbang_b_keluar
+
+    kumulatif_gerbang_a_masuk.clear()
+    kumulatif_gerbang_a_keluar.clear()
+    kumulatif_gerbang_b_masuk.clear()
+    kumulatif_gerbang_b_keluar.clear()
+    logger.info("[Reset Harian] Kumulatif occupancy di-reset ke 0 (pukul 00:00).")
+
+    # Jadwalkan lagi untuk hari berikutnya
+    threading.Timer(_hitung_detik_ke_tengah_malam(), _jadwalkan_reset_harian).start()
 
 
 def buat_handler_pesan(config, db):
@@ -126,6 +187,14 @@ def buat_handler_pesan(config, db):
         timestamp = payload.get("timestamp", time.time())
 
         logger.info(f"[MQTT-Consumer] Menerima agregasi dari {gerbang_id}: {counter}")
+
+        # Deteksi clock drift — Tahap 5: validasi sinkronisasi waktu node edge
+        drift_detik = abs(time.time() - timestamp)
+        if drift_detik > 5.0:
+            logger.warning(
+                f"[MQTT-Consumer] Drift waktu terdeteksi dari {gerbang_id}: "
+                f"{drift_detik:.1f} detik. Cek sinkronisasi NTP node edge ini."
+            )
 
         # 1. Simpan rincian hitungan mentah ke database
         try:
@@ -206,9 +275,46 @@ def buat_handler_pesan(config, db):
         logger.info(f"[Sistem Pakar] Rekomendasi: {hasil.teks_rekomendasi}")
         logger.info(f"[Sistem Pakar] Metode: {metode_occupancy} | {confidence_note}")
 
+        # 4b. Evaluasi MKJI 1997 (paralel, tidak menggantikan sistem pakar lama)
+        hasil_mkji = None
+        try:
+            interval_jam = interval_detik / 3600.0
+            if interval_jam > 0:
+                # Flow pada interval ini (dari gerbang yang melaporkan)
+                flow_per_kelas = defaultdict(int)
+                for key, jumlah in counter.items():
+                    parts = key.split("_", 1)
+                    if len(parts) == 2:
+                        kelas = parts[1]
+                        flow_per_kelas[kelas] += jumlah
+                        
+                jumlah_per_jam = {
+                    kelas: jumlah / interval_jam
+                    for kelas, jumlah in flow_per_kelas.items()
+                }
+                hasil_mkji = evaluasi_mkji(
+                    jumlah_per_kelas_per_jam=jumlah_per_jam,
+                    medan=config.get("mkji.medan", "gunung"),
+                    fc_w=float(config.get("mkji.fc_w", 0.90)),
+                    fc_sp=float(config.get("mkji.fc_sp", 1.00)),
+                    fc_sf=float(config.get("mkji.fc_sf", 1.00)),
+                    fc_cs=float(config.get("mkji.fc_cs", 1.00)),
+                    emp=config.get("mkji.emp"),
+                    ambang_lancar=float(config.get("mkji.ambang_lancar_vc", 0.54)),
+                    ambang_padat=float(config.get("mkji.ambang_padat_vc", 0.90)),
+                )
+                logger.info(
+                    f"[MKJI] Volume: {hasil_mkji.volume_smp_per_jam:.1f} smp/jam | "
+                    f"Kapasitas: {hasil_mkji.kapasitas_smp_per_jam:.1f} smp/jam | "
+                    f"V/C: {hasil_mkji.rasio_vc:.3f} | LOS: {hasil_mkji.level_of_service} | "
+                    f"Status: {hasil_mkji.status_label.upper()}"
+                )
+        except ValueError as e:
+            logger.error(f"[MKJI] ERROR: {e}")
+
         # 5. Simpan status ke database
         try:
-            db.simpan_status_ruas(id_ruas, hasil, total_occupancy)
+            db.simpan_status_ruas(id_ruas, hasil, total_occupancy, hasil_mkji=hasil_mkji)
         except Exception as e:
             logger.error(f"[MQTT-Consumer] ERROR menyimpan status ke database: {e}")
 
@@ -233,6 +339,12 @@ def jalankan():
 
     # Pulihkan state occupancy dari DB sebelum mulai terima pesan baru
     recover_occupancy_dari_db(db)
+
+    # Jadwalkan reset harian kumulatif occupancy setiap pukul 00:00 (Tahap 1)
+    t_reset = threading.Timer(_hitung_detik_ke_tengah_malam(), _jadwalkan_reset_harian)
+    t_reset.daemon = True  # daemon thread — otomatis berhenti saat proses utama berhenti
+    t_reset.start()
+    logger.info("[Reset Harian] Scheduler reset occupancy aktif.")
 
     on_connect, on_message = buat_handler_pesan(config, db)
 

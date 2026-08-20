@@ -21,9 +21,6 @@ class SumberVideo:
         else:
             source = kamera_config.get("source") or kamera_config.get("file_path") or config.get("video_source.file_path")
             
-        if source and source.startswith("${") and source.endswith("}"):
-            env_var = source[2:-1]
-            source = os.environ.get(env_var, source)
 
         if mode == "rtsp" or mode == "stream":
             self.source = source

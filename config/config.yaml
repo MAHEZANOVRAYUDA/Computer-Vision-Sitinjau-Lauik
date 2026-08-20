@@ -199,11 +199,11 @@ mqtt:
 # 10. DATABASE
 # ---------------------------------------------------------------------
 database:
-  host: "localhost"
+  host: "${DB_HOST}"
   port: 5432
-  name: "sitinjau_lauik_db"
-  user: "postgres"
-  password: "postgres123"
+  name: "${DB_NAME}"
+  user: "${DB_USER}"
+  password: "${DB_PASSWORD}"
 
 # ---------------------------------------------------------------------
 # 11. TAMPILAN / DEBUG
@@ -231,3 +231,21 @@ logging:
   # Path file log relatif terhadap root folder proyek.
   # Log dirotasi setiap tengah malam, disimpan 7 hari terakhir.
   file_path: "data/logs/sistem.log"
+
+# ---------------------------------------------------------------------
+# 13. MKJI 1997 — parameter kapasitas standar (metrik UTAMA untuk laporan
+# resmi/publikasi, menggantikan meter-lajur sebagai output utama)
+# ---------------------------------------------------------------------
+mkji:
+  medan: "gunung"              # gradien 8-12% -> kategori MKJI "gunung"
+  fc_w: 0.90                   # faktor lebar jalur, WAJIB divalidasi lapangan
+  fc_sp: 1.00                  # tak terbagi, tanpa median
+  fc_sf: 1.00                  # hambatan samping rendah (jalan luar kota)
+  fc_cs: 1.00                  # jalan rural
+  emp:
+    motor: 0.4
+    mobil: 1.0
+    bus: 3.25                  # titik tengah rentang MKJI gunung 3.0-3.5, VALIDASI LAPANGAN
+    truk: 5.0                  # titik tengah rentang MKJI gunung 4.0-6.0, VALIDASI LAPANGAN
+  ambang_lancar_vc: 0.54
+  ambang_padat_vc: 0.90

@@ -136,6 +136,12 @@ class OccupancyRuas:
     arah_b_ke_a: Dict[str, int]   # occupancy kendaraan yang sedang menuju Padang
     total_per_kelas: Dict[str, int]
     metode: str = "selisih_kumulatif_dual_gerbang"
+    confidence_note: str = ""
+
+    @property
+    def jumlah_per_kelas(self) -> Dict[str, int]:
+        """Alias untuk total_per_kelas — backward compatibility."""
+        return self.total_per_kelas
 
 
 def hitung_occupancy_ruas(
@@ -171,10 +177,25 @@ def hitung_occupancy_ruas(
         for kelas in semua_kelas
     }
 
+    # Tentukan apakah menggunakan data multi-kamera atau tidak
+    ada_data_gerbang_b = bool(kumulatif_gerbang_b_keluar or kumulatif_gerbang_b_masuk)
+    if ada_data_gerbang_b:
+        note = (
+            "Occupancy dihitung dari selisih kumulatif dual-gerbang (multi-kamera): "
+            "Gerbang A masuk − Gerbang B keluar (dan sebaliknya). "
+            "Akurasi tinggi karena menggunakan data aktual kedua gerbang."
+        )
+    else:
+        note = (
+            "Occupancy dihitung dari data Gerbang A saja — Gerbang B belum aktif. "
+            "Untuk akurasi optimal, aktifkan kamera Gerbang B."
+        )
+
     return OccupancyRuas(
         arah_a_ke_b=arah_a_ke_b,
         arah_b_ke_a=arah_b_ke_a,
         total_per_kelas=total,
+        confidence_note=note,
     )
 
 

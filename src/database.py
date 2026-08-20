@@ -169,14 +169,16 @@ class Database:
             )
             return cursor.fetchall()
 
-    def simpan_status_ruas(self, id_ruas: int, hasil_klasifikasi, total_kendaraan_saat_ini: int):
+    def simpan_status_ruas(self, id_ruas: int, hasil_klasifikasi, total_kendaraan_saat_ini: int, hasil_mkji=None):
         with self._cursor() as cursor:
             cursor.execute(
                 """
                 INSERT INTO status_ruas
                     (id_ruas, timestamp_hitung, total_kendaraan_saat_ini,
-                     volume_smp, rasio_vc, level_of_service, status_label, teks_rekomendasi)
-                VALUES (%s, NOW(), %s, %s, %s, %s, %s, %s)
+                     volume_smp, rasio_vc, level_of_service, status_label, teks_rekomendasi,
+                     volume_smp_jam_mkji, kapasitas_smp_jam_mkji, rasio_vc_mkji,
+                     level_of_service_mkji, status_label_mkji)
+                VALUES (%s, NOW(), %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """,
                 (
                     id_ruas,
@@ -186,6 +188,11 @@ class Database:
                     hasil_klasifikasi.level_of_service,
                     hasil_klasifikasi.status_label,
                     hasil_klasifikasi.teks_rekomendasi,
+                    hasil_mkji.volume_smp_per_jam if hasil_mkji else None,
+                    hasil_mkji.kapasitas_smp_per_jam if hasil_mkji else None,
+                    hasil_mkji.rasio_vc if hasil_mkji else None,
+                    hasil_mkji.level_of_service if hasil_mkji else None,
+                    hasil_mkji.status_label if hasil_mkji else None,
                 ),
             )
 
@@ -251,6 +258,39 @@ class Database:
                 occupancy[kelas] = max(0, occupancy[kelas] - total)
 
         return occupancy
+
+    def ambil_kumulatif_masuk_keluar_per_gerbang(self, sejak_jam: int = 24) -> dict:
+        """
+        Mengambil akumulasi mentah masuk/keluar per gerbang+kelas dalam
+        N jam terakhir (bukan net) — untuk recovery state in-memory
+        mqtt_consumer.py saat restart.
+
+        Return: {
+          "gerbang_a_masuk": {"motor": 120, "mobil": 45, ...},
+          "gerbang_a_keluar": {...},
+          "gerbang_b_masuk": {...},
+          "gerbang_b_keluar": {...},
+        }
+        """
+        with self._dict_cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT id_gerbang, arah, jenis_kendaraan, SUM(jumlah_terhitung) as total
+                FROM hitungan_kendaraan
+                WHERE timestamp_interval >= CURRENT_DATE
+                GROUP BY id_gerbang, arah, jenis_kendaraan
+                """,
+            )
+            rows = cursor.fetchall()
+
+        hasil: Dict[str, Dict[str, int]] = {}
+        for row in rows:
+            gerbang = row["id_gerbang"]
+            arah = row["arah"]
+            kelas = row["jenis_kendaraan"]
+            key = f"{gerbang}_{arah}"
+            hasil.setdefault(key, {})[kelas] = int(row["total"] or 0)
+        return hasil
 
     def ambil_status_gerbang(self) -> List[Dict]:
         """Mengambil daftar gerbang dan status perangkatnya dari tabel gerbang_kamera."""

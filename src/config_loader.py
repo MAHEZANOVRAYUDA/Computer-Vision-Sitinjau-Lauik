@@ -30,6 +30,29 @@ from src.sistem_pakar import hitung_kapasitas_volumetrik_ruas
 _loader_log = logging.getLogger(__name__)
 
 
+def _resolve_env_vars(data):
+    """
+    Rekursif ganti '${VAR_NAME}' dengan os.environ['VAR_NAME'] di semua nilai string.
+    Berlaku untuk SEMUA field config, bukan hanya video_source.
+    Dipanggil setelah yaml.safe_load() di load_config().
+    """
+    if isinstance(data, dict):
+        return {k: _resolve_env_vars(v) for k, v in data.items()}
+    elif isinstance(data, list):
+        return [_resolve_env_vars(v) for v in data]
+    elif isinstance(data, str) and data.startswith("${") and data.endswith("}"):
+        env_var = data[2:-1]
+        resolved = os.environ.get(env_var)
+        if resolved is None:
+            _loader_log.warning(
+                f"[Config] Environment variable '{env_var}' tidak ditemukan, "
+                f"nilai literal '${{{env_var}}}' dipakai apa adanya."
+            )
+            return data
+        return resolved
+    return data
+
+
 class Config:
     """
     Wrapper sederhana di atas dict hasil parsing YAML,
@@ -161,6 +184,10 @@ def load_config(path: str = "config/config.yaml") -> Config:
 
     with open(config_path, "r", encoding="utf-8") as f:
         data = yaml.safe_load(f)
+
+    # Ganti semua placeholder ${VAR} dengan nilai dari environment variable
+    # Berlaku generik untuk semua field: database.password, rtsp_url, dst.
+    data = _resolve_env_vars(data)
 
     config = Config(data)
 

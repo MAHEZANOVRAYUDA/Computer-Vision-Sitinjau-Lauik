@@ -180,6 +180,14 @@ def _build_status_response() -> dict:
     status_dict["occupancy_metode"] = metode
     status_dict["confidence_note"] = confidence_note
 
+    # Tambahkan field MKJI (Tahap 9) — backward compatible, field lama tetap ada
+    # Field ini diisi dari kolom MKJI di status_ruas jika tersedia
+    status_dict.setdefault("volume_smp_per_jam_mkji", status_dict.get("volume_smp_jam_mkji"))
+    status_dict.setdefault("kapasitas_smp_per_jam_mkji", status_dict.get("kapasitas_smp_jam_mkji"))
+    status_dict.setdefault("rasio_vc_mkji", status_dict.get("rasio_vc_mkji"))
+    status_dict.setdefault("level_of_service_mkji", status_dict.get("level_of_service_mkji"))
+    status_dict.setdefault("status_label_mkji", status_dict.get("status_label_mkji"))
+
     return {"tersedia": True, "data": status_dict}
 
 

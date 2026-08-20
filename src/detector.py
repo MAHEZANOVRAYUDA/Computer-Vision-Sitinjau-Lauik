@@ -71,7 +71,7 @@ class DetektorKendaraan:
                 
             garis_list.append(
                 GarisVirtual(
-                    line_id=line["id"],
+                    lajur_id=line["id"],
                     arah=line["arah"],
                     titik_1=tuple(titik_1),
                     titik_2=tuple(titik_2),
@@ -146,7 +146,7 @@ class DetektorKendaraan:
                 events = self.pelacak_garis.proses_deteksi(tid, x_center, y_center)
                 for event in events:
                     self._catat_event(
-                        line_id=event["line_id"],
+                        line_id=event["lajur_id"],
                         arah=event["arah"],
                         kelas=kelas,
                         track_id=tid,

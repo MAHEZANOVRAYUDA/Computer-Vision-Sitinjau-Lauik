@@ -76,10 +76,25 @@ CREATE TABLE IF NOT EXISTS status_ruas (
     level_of_service VARCHAR(5),   -- A-F sesuai MKJI
     status_label    VARCHAR(20),   -- "lancar" / "padat" / "macet"
     teks_rekomendasi TEXT,
+    -- Kolom MKJI 1997 (Tahap 2 Blueprint v4)
+    volume_smp_jam_mkji     NUMERIC(10, 2),
+    kapasitas_smp_jam_mkji  NUMERIC(10, 2),
+    rasio_vc_mkji           NUMERIC(6, 4),
+    level_of_service_mkji   VARCHAR(5),
+    status_label_mkji       VARCHAR(20),
     dibuat_pada     TIMESTAMP DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_status_timestamp ON status_ruas(timestamp_hitung);
+
+-- ALTER TABLE untuk database yang sudah ada (idempoten, aman dijalankan ulang)
+ALTER TABLE status_ruas
+  ADD COLUMN IF NOT EXISTS volume_smp_jam_mkji NUMERIC(10, 2),
+  ADD COLUMN IF NOT EXISTS kapasitas_smp_jam_mkji NUMERIC(10, 2),
+  ADD COLUMN IF NOT EXISTS rasio_vc_mkji NUMERIC(6, 4),
+  ADD COLUMN IF NOT EXISTS level_of_service_mkji VARCHAR(5),
+  ADD COLUMN IF NOT EXISTS status_label_mkji VARCHAR(20);
+
 
 -- ---------------------------------------------------------------------
 -- Data awal (seed) untuk prototipe: 1 ruas jalan + Gerbang A

@@ -265,3 +265,64 @@ class TestAmbilOccupancyHariIni:
             hasil = db.ambil_occupancy_hari_ini()
 
         assert hasil == {}
+
+
+# -----------------------------------------------------------------------
+# Tes: ambil_kumulatif_masuk_keluar_per_gerbang()
+# -----------------------------------------------------------------------
+
+class TestAmbilKumulatifMasukKeluarPerGerbang:
+
+    def test_mengembalikan_data_per_gerbang_dan_arah(self):
+        """Data dari DB di-group per 'gerbang_arah' dengan benar."""
+        db, mock_conn, mock_cursor = buat_db_mock()
+        mock_cursor.fetchall.return_value = [
+            {"id_gerbang": "gerbang_a", "arah": "masuk", "jenis_kendaraan": "motor", "total": 120},
+            {"id_gerbang": "gerbang_a", "arah": "masuk", "jenis_kendaraan": "mobil", "total": 45},
+            {"id_gerbang": "gerbang_a", "arah": "keluar", "jenis_kendaraan": "motor", "total": 80},
+            {"id_gerbang": "gerbang_b", "arah": "keluar", "jenis_kendaraan": "mobil", "total": 30},
+        ]
+
+        with patch.object(db, '_ensure_connected'):
+            hasil = db.ambil_kumulatif_masuk_keluar_per_gerbang()
+
+        assert hasil["gerbang_a_masuk"]["motor"] == 120
+        assert hasil["gerbang_a_masuk"]["mobil"] == 45
+        assert hasil["gerbang_a_keluar"]["motor"] == 80
+        assert hasil["gerbang_b_keluar"]["mobil"] == 30
+
+    def test_kosong_jika_tidak_ada_data(self):
+        """Jika tidak ada data di DB, kembalikan dict kosong tanpa error."""
+        db, mock_conn, mock_cursor = buat_db_mock()
+        mock_cursor.fetchall.return_value = []
+
+        with patch.object(db, '_ensure_connected'):
+            hasil = db.ambil_kumulatif_masuk_keluar_per_gerbang()
+
+        assert hasil == {}
+
+    def test_total_dikonversi_ke_int(self):
+        """Nilai total dari DB (bisa None atau string) dikonversi ke int dengan benar."""
+        db, mock_conn, mock_cursor = buat_db_mock()
+        mock_cursor.fetchall.return_value = [
+            {"id_gerbang": "gerbang_a", "arah": "masuk", "jenis_kendaraan": "truk", "total": None},
+        ]
+
+        with patch.object(db, '_ensure_connected'):
+            hasil = db.ambil_kumulatif_masuk_keluar_per_gerbang()
+
+        # total=None harus dikonversi ke 0
+        assert hasil["gerbang_a_masuk"]["truk"] == 0
+
+    def test_sql_menggunakan_current_date(self):
+        """SQL harus menggunakan CURRENT_DATE untuk membatasi data hari ini."""
+        db, mock_conn, mock_cursor = buat_db_mock()
+        mock_cursor.fetchall.return_value = []
+
+        with patch.object(db, '_ensure_connected'):
+            db.ambil_kumulatif_masuk_keluar_per_gerbang()
+
+        sql_dieksekusi = mock_cursor.execute.call_args[0][0]
+        assert "CURRENT_DATE" in sql_dieksekusi, (
+            f"SQL harus menggunakan CURRENT_DATE, bukan window jam. SQL: {sql_dieksekusi}"
+        )

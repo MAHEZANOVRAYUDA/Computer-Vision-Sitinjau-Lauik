@@ -390,29 +390,39 @@ class TestEstimasiOccupancyFlowXTraveltime:
 
 class TestEstimasiOccupancyFlowInMinusOut:
     def test_masuk_lebih_banyak_dari_keluar(self):
-        masuk = {"mobil": 100, "motor": 50}
-        keluar = {"mobil": 30, "motor": 10}
-        hasil = hitung_occupancy_ruas({"mobil": 10}, {"mobil": 5}, {}, {})
+        """masuk 100 mobil, keluar 30 mobil: occupancy = 100 - 30 = 70 mobil."""
+        hasil = hitung_occupancy_ruas(
+            {"mobil": 100, "motor": 50},  # Gerbang A masuk
+            {"mobil": 30, "motor": 10},   # Gerbang B keluar (arah A ke B)
+            {},                            # Gerbang B masuk (arah B ke A, kosong)
+            {}                             # Gerbang A keluar (arah B ke A, kosong)
+        )
         assert hasil.metode == "selisih_kumulatif_dual_gerbang"
         assert hasil.jumlah_per_kelas["mobil"] == 70   # 100 - 30
         assert hasil.jumlah_per_kelas["motor"] == 40   # 50 - 10
-        assert hasil.total == 110
+        total_expected = 70 + 40
+        assert hasil.total_per_kelas["mobil"] + hasil.total_per_kelas["motor"] == total_expected
 
     def test_keluar_lebih_banyak_di_clamp_ke_nol(self):
         """Jika keluar > masuk (anomali data), hasil harus clamp ke 0."""
-        masuk = {"mobil": 10}
-        keluar = {"mobil": 50}  # lebih banyak keluar dari masuk → anomali
-        hasil = hitung_occupancy_ruas(masuk, keluar, {}, {})
-        assert hasil.total_per_kelas["truk"] == 10
-        assert hasil.total == 0
+        hasil = hitung_occupancy_ruas(
+            {"mobil": 10},   # Gerbang A masuk
+            {"mobil": 50},   # Gerbang B keluar > masuk → anomali → clamp ke 0
+            {},
+            {}
+        )
+        assert hasil.total_per_kelas["mobil"] == 0  # clamp ke 0
 
     def test_kelas_hanya_ada_di_masuk(self):
         """Kelas yang ada di masuk tapi tidak ada di keluar."""
-        masuk = {"motor": 100, "truk": 20}
-        keluar = {"motor": 40}  # truk tidak ada di keluar
-        hasil = hitung_occupancy_ruas(masuk, keluar, {}, {})
-        assert hasil.total_per_kelas["motor"] == 20
-        assert hasil.total_per_kelas["mobil"] == 520  # semua masuk belum keluar
+        hasil = hitung_occupancy_ruas(
+            {"motor": 100, "truk": 20},  # Gerbang A masuk
+            {"motor": 40},               # Gerbang B keluar (truk tidak ada → 0 keluar)
+            {},
+            {}
+        )
+        assert hasil.total_per_kelas["motor"] == 60   # 100 - 40
+        assert hasil.total_per_kelas["truk"] == 20    # 20 - 0 = 20 (tidak ada truk keluar)
 
     def test_confidence_note_berisi_multi_kamera(self):
         hasil = hitung_occupancy_ruas({"mobil": 10}, {"mobil": 5}, {}, {})

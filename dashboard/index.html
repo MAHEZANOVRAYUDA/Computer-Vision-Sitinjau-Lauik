@@ -457,18 +457,22 @@
         <div class="metric-val" id="val-occupancy">—</div>
         <div style="font-size:0.68rem;color:var(--text-tertiary);margin-top:0.25rem;" id="occupancy-metode-label">—</div>
       </div>
-      <div class="glass-panel metric-card">
-        <div class="metric-title"><span style="margin-right: 4px;">📏</span> Volume (Meter-Lajur)</div>
-        <div class="metric-val" id="val-smp">—</div>
+      <!-- Metrik MKJI 1997 sebagai utama (menggantikan meter-lajur) -->
+      <div class="glass-panel metric-card" title="V/C ratio sesuai MKJI 1997 — standar internasional untuk laporan resmi">
+        <div class="metric-title"><span style="margin-right: 4px;">📐</span> V/C Ratio (MKJI 1997)</div>
+        <div class="metric-val" id="val-vc-mkji" style="font-size:1.75rem;">—</div>
+        <div style="font-size:0.68rem;color:var(--text-tertiary);margin-top:0.25rem;" id="val-los-mkji-label">LOS — | —</div>
       </div>
-      <div class="glass-panel metric-card" style="position: relative; overflow: hidden;">
-        <div class="metric-title"><span style="margin-right: 4px;">🚦</span> Kepadatan</div>
-        <div class="metric-val" id="val-vc" style="position: relative; z-index: 2;">—</div>
+      <div class="glass-panel metric-card" style="position: relative; overflow: hidden;" title="Volume (smp/jam) / Kapasitas MKJI (smp/jam)">
+        <div class="metric-title"><span style="margin-right: 4px;">🚦</span> Volume vs Kapasitas MKJI</div>
+        <div class="metric-val" id="val-volume-mkji" style="font-size:1.6rem;">—</div>
+        <div style="font-size:0.68rem;color:var(--text-tertiary);margin-top:0.25rem;" id="val-kapasitas-mkji-label">Kapasitas: — smp/jam</div>
         <div id="vc-progress" style="position: absolute; bottom: 0; left: 0; height: 6px; background: var(--lancar); width: 0%; transition: width 1s ease-out, background 1s ease-out; z-index: 1;"></div>
       </div>
       <div class="glass-panel metric-card">
         <div class="metric-title"><span style="margin-right: 4px;">📊</span> Level of Service</div>
         <div class="metric-val" id="val-los">—</div>
+        <div style="font-size:0.68rem;color:var(--text-tertiary);margin-top:0.25rem;">Sistem Pakar</div>
       </div>
     </div>
 
@@ -523,8 +527,14 @@
 
     <!-- Grafik Tren -->
     <div class="glass-panel">
-      <div class="section-title">Tren Kepadatan (2 Jam Terakhir)</div>
-      <div class="chart-container">
+      <div class="section-title">Tren V/C Ratio MKJI 1997 (2 Jam Terakhir)</div>
+      <div style="font-size:0.72rem;color:var(--text-tertiary);margin-bottom:0.5rem;">
+        Metrik primer standar MKJI | Batas LOS C = 0.60 | Batas LOS E = 0.90
+      </div>
+      <div class="chart-container" style="position: relative;">
+        <div id="chart-placeholder" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; z-index: 10; color: rgba(255,255,255,0.4); font-size: 0.9rem; font-style: italic; pointer-events: none;">
+          Mengumpulkan histori data...
+        </div>
         <canvas id="trendChart"></canvas>
       </div>
     </div>
@@ -565,23 +575,39 @@
       type: "line",
       data: {
         labels: [],
-        datasets: [{
-          label: "Kepadatan (%)",
-          data: [],
-          borderColor: "#3b82f6",
-          backgroundColor: "rgba(59, 130, 246, 0.1)",
-          borderWidth: 2,
-          pointRadius: 0,
-          pointHitRadius: 10,
-          fill: true,
-          tension: 0.4,
-        }],
+        datasets: [
+          {
+            label: "V/C MKJI 1997",
+            data: [],
+            borderColor: "#3b82f6",
+            backgroundColor: "rgba(59, 130, 246, 0.1)",
+            borderWidth: 2,
+            pointRadius: 0,
+            pointHitRadius: 10,
+            fill: true,
+            tension: 0.4,
+            yAxisID: "y",
+          },
+          {
+            label: "Kepadatan Sistem Pakar (%)",
+            data: [],
+            borderColor: "#8b5cf6",
+            backgroundColor: "rgba(139, 92, 246, 0.05)",
+            borderWidth: 1.5,
+            borderDash: [4, 4],
+            pointRadius: 0,
+            pointHitRadius: 10,
+            fill: false,
+            tension: 0.4,
+            yAxisID: "y",
+          }
+        ],
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
-          legend: { display: false },
+          legend: { display: true, position: "top" },
           tooltip: {
             mode: "index",
             intersect: false,
@@ -590,13 +616,22 @@
             bodyColor: "#e2e8f0",
             borderColor: "#334155",
             borderWidth: 1,
+            callbacks: {
+              label: function(ctx) {
+                return `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(3)}`;
+              }
+            }
           },
+          annotation: {},
         },
         scales: {
           y: {
             beginAtZero: true,
-            max: 100,
+            max: 1.2,
             grid: { color: "rgba(255,255,255,0.05)" },
+            ticks: {
+              callback: (val) => val.toFixed(2),
+            },
           },
           x: {
             grid: { display: false },
@@ -632,18 +667,46 @@
     document.getElementById("last-update-text").textContent =
       "Terakhir diperbarui: " + new Date().toLocaleTimeString("id-ID");
 
-    // Status utama
-    const statusLabel = (data.status_label || "memuat").toLowerCase();
+    // Status utama — tampilkan dari MKJI jika tersedia, fallback ke sistem pakar
+    const mkjiStatus = data.status_label_mkji || data.status_label || "memuat";
+    const statusLabel = mkjiStatus.toLowerCase();
     const panel = document.getElementById("panel-status");
     panel.className = `glass-panel status-utama ${statusLabel}`;
     document.getElementById("status-text").textContent = statusLabel.toUpperCase();
     document.getElementById("rekomendasi-text").textContent = data.teks_rekomendasi || "";
 
-    // Metrik
+    // Metrik Occupancy
     document.getElementById("val-occupancy").textContent = data.total_kendaraan_saat_ini ?? "—";
-    document.getElementById("val-smp").textContent = data.volume_smp ?? "—";
-    document.getElementById("val-vc").textContent =
-      data.rasio_vc !== undefined ? (parseFloat(data.rasio_vc) * 100).toFixed(1) + "%" : "—";
+
+    // Metrik MKJI 1997 sebagai utama
+    const vcMkji = data.rasio_vc_mkji ?? data.rasio_vc_mkji;
+    if (vcMkji !== null && vcMkji !== undefined) {
+      document.getElementById("val-vc-mkji").textContent = parseFloat(vcMkji).toFixed(3);
+      const losMkji = data.level_of_service_mkji || "—";
+      const statusMkji = data.status_label_mkji || "—";
+      document.getElementById("val-los-mkji-label").textContent = `LOS ${losMkji} | ${statusMkji}`;
+
+      const volMkji = data.volume_smp_per_jam_mkji ?? data.volume_smp_jam_mkji;
+      const kapMkji = data.kapasitas_smp_per_jam_mkji ?? data.kapasitas_smp_jam_mkji;
+      if (volMkji !== null && volMkji !== undefined) {
+        document.getElementById("val-volume-mkji").textContent = `${parseFloat(volMkji).toFixed(0)} smp/jam`;
+      }
+      if (kapMkji !== null && kapMkji !== undefined) {
+        document.getElementById("val-kapasitas-mkji-label").textContent = `Kapasitas: ${parseFloat(kapMkji).toFixed(0)} smp/jam`;
+      }
+
+      // V/C progress bar
+      const pct = Math.min(parseFloat(vcMkji) * 100 / 1.2, 100);  // max V/C 1.2 -> 100%
+      const prog = document.getElementById("vc-progress");
+      if (prog) {
+        prog.style.width = pct + "%";
+        const vcVal = parseFloat(vcMkji);
+        prog.style.background = vcVal > 0.90 ? "var(--macet)" : (vcVal > 0.54 ? "var(--padat)" : "var(--lancar)");
+        prog.style.boxShadow = `0 0 10px ${prog.style.background}`;
+      }
+    }
+
+    // LOS Sistem Pakar (tetap ditampilkan)
     document.getElementById("val-los").textContent = data.level_of_service ?? "—";
 
     // Label metode occupancy
@@ -665,16 +728,6 @@
       if (noteEl && noteTeks) {
         noteTeks.textContent = "ℹ️ " + data.confidence_note;
         noteEl.style.display = "block";
-      }
-    }
-
-    if (data.rasio_vc !== undefined) {
-      const pct = Math.min(parseFloat(data.rasio_vc) * 100, 100);
-      const prog = document.getElementById("vc-progress");
-      if (prog) {
-        prog.style.width = pct + "%";
-        prog.style.background = pct > 75 ? "var(--macet)" : (pct > 50 ? "var(--padat)" : "var(--lancar)");
-        prog.style.boxShadow = `0 0 10px ${prog.style.background}`;
       }
     }
 
@@ -782,9 +835,13 @@
         const labels = json.data.map(d =>
           new Date(d.timestamp_hitung).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })
         );
-        const data = json.data.map(d => (parseFloat(d.rasio_vc) || 0) * 100);
+        // Dataset 1: V/C MKJI (metrik primer)
+        const dataVcMkji = json.data.map(d => parseFloat(d.rasio_vc_mkji) || null);
+        // Dataset 2: Kepadatan sistem pakar dalam skala 0-1 (bukan %)
+        const dataVcLama = json.data.map(d => (parseFloat(d.rasio_vc) || 0));
         trendChart.data.labels = labels;
-        trendChart.data.datasets[0].data = data;
+        trendChart.data.datasets[0].data = dataVcMkji;
+        trendChart.data.datasets[1].data = dataVcLama;
         trendChart.update();
       }
     } catch (e) {
@@ -877,13 +934,16 @@
       for (const g of aktifGerbang) {
         const port = portMap[g.id_gerbang] || 9001;
         const label = (g.nama_gerbang || g.id_gerbang).toUpperCase();
+        // Arah kamera — label untuk laporan dan demo
+        const arahLabel = g.id_gerbang === "gerbang_a" ? "↓ Menuju Padang" : "↑ Menuju Solok";
         const svgOffline = `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='960' height='540'><rect width='100%' height='100%' fill='%23131c2e'/><text x='50%' y='50%' fill='%2364748b' font-family='sans-serif' font-size='24' text-anchor='middle'>${encodeURIComponent(label)} Offline / Reconnecting...</text></svg>`;
         const statusId = `cam-status-${g.id_gerbang}`;
         
         cameraGrid.innerHTML += `
           <div style="position:relative;border-radius:8px;overflow:hidden;border:1px solid var(--glass-border); display:flex; flex-direction:column; background:var(--bg-base);">
             <div style="position:absolute;top:0;left:0;background:rgba(0,0,0,0.7);padding:4px 8px;font-size:0.75rem;border-bottom-right-radius:8px;color:#fff;z-index:10;font-weight:bold;letter-spacing:1px;display:flex;align-items:center;gap:6px;">
-              ${label} <span id="${statusId}" style="color:var(--text-tertiary);">⌛ Reconnecting...</span>
+              ${label} <span style="color:#94a3b8;font-weight:400;font-size:0.65rem;">${arahLabel}</span>
+              <span id="${statusId}" style="color:var(--text-tertiary);">⌛ Reconnecting...</span>
             </div>
             <img src="http://localhost:${port}/video_feed" style="width:100%;height:100%;object-fit:cover;display:block;"
               onload="document.getElementById('${statusId}').innerHTML='● Live'; document.getElementById('${statusId}').style.color='var(--lancar)';"

@@ -18,10 +18,11 @@
 # ---------------------------------------------------------------------
 video_source:
   # Ganti ke "file" jika kamera fisik belum siap dan ingin test dengan video
-  mode: "rtsp"
+  mode: "file"
 
   # Kamera IP Gerbang A — arahkan ke RTSP stream kamera di Jl. Padang Basi
-  rtsp_url: "rtsp://admin:lppm25upi@192.168.50.212:8554/Streaming/Channels/101"
+  # JANGAN hardcode URL RTSP di sini — baca dari .env via ${GERBANG_A_RTSP_URL}
+  rtsp_url: "${GERBANG_A_RTSP_URL}"
 
   # Fallback: path file video untuk testing lokal
   file_path: "data/videos/test3.mp4"
@@ -49,7 +50,7 @@ kamera:
     gerbang: "A"
     aktif: true
     stream_port: 9001
-    rtsp_url: "rtsp://admin:lppm25upi@192.168.50.212:8554/Streaming/Channels/101"
+    rtsp_url: "${GERBANG_A_RTSP_URL}"
     counting_lines:
       - id: "lajur_kiri"
         arah: "masuk"
@@ -57,6 +58,12 @@ kamera:
           titik_1: [100, 400]
           titik_2: [450, 400]
         toleransi_piksel: 8
+        # pixel_per_meter WAJIB dikalibrasi ulang untuk kamera ini secara
+        # spesifik menggunakan scripts/kalibrasi_garis.py --kalibrasi-meter
+        # setelah kamera terpasang fisik di lokasi final.
+        # Nilai di bawah adalah PLACEHOLDER dan TIDAK VALID untuk klaim
+        # kecepatan/LOS hybrid sampai dikalibrasi.
+        # Tanggal kalibrasi terakhir: [ISI SETELAH KALIBRASI LAPANGAN]
         pixel_per_meter: 25.0
       - id: "lajur_kanan"
         arah: "keluar"
@@ -64,6 +71,12 @@ kamera:
           titik_1: [510, 400]
           titik_2: [860, 400]
         toleransi_piksel: 8
+        # pixel_per_meter WAJIB dikalibrasi ulang untuk kamera ini secara
+        # spesifik menggunakan scripts/kalibrasi_garis.py --kalibrasi-meter
+        # setelah kamera terpasang fisik di lokasi final.
+        # Nilai di bawah adalah PLACEHOLDER dan TIDAK VALID untuk klaim
+        # kecepatan/LOS hybrid sampai dikalibrasi.
+        # Tanggal kalibrasi terakhir: [ISI SETELAH KALIBRASI LAPANGAN]
         pixel_per_meter: 25.0
   - id: "gerbang_b"
     gerbang: "B"
@@ -156,11 +169,11 @@ mqtt:
 # 10. DATABASE — sama untuk semua node
 # ---------------------------------------------------------------------
 database:
-  host: "localhost"
+  host: "${DB_HOST}"
   port: 5432
-  name: "sitinjau_lauik_db"
-  user: "postgres"
-  password: "postgres123"
+  name: "${DB_NAME}"
+  user: "${DB_USER}"
+  password: "${DB_PASSWORD}"
 
 # ---------------------------------------------------------------------
 # 11. TAMPILAN / DEBUG — Gerbang A
@@ -178,3 +191,21 @@ tampilan:
 logging:
   level: "INFO"
   file_path: "data/logs/gerbang_a.log"
+
+# ---------------------------------------------------------------------
+# 13. MKJI 1997 — parameter kapasitas standar (metrik UTAMA untuk laporan
+# resmi/publikasi, menggantikan meter-lajur sebagai output utama)
+# ---------------------------------------------------------------------
+mkji:
+  medan: "gunung"              # gradien 8-12% -> kategori MKJI "gunung"
+  fc_w: 0.90                   # faktor lebar jalur, WAJIB divalidasi lapangan
+  fc_sp: 1.00                  # tak terbagi, tanpa median
+  fc_sf: 1.00                  # hambatan samping rendah (jalan luar kota)
+  fc_cs: 1.00                  # jalan rural
+  emp:
+    motor: 0.4
+    mobil: 1.0
+    bus: 3.25                  # titik tengah rentang MKJI gunung 3.0-3.5, VALIDASI LAPANGAN
+    truk: 5.0                  # titik tengah rentang MKJI gunung 4.0-6.0, VALIDASI LAPANGAN
+  ambang_lancar_vc: 0.54
+  ambang_padat_vc: 0.90

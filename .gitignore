@@ -15,7 +15,7 @@ __pycache__/
 data/videos/*.mp4
 data/videos/*.avi
 data/logs/*.mp4
-data/logs/*.log
+data/logs/*.log*
 
 # Model weights (biasanya besar, download terpisah)
 models/*.pt

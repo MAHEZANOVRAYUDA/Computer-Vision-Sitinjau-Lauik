@@ -16,7 +16,7 @@ from src.mkji import (
     klasifikasi_status_mkji,
     evaluasi_mkji,
     EMP_GUNUNG,
-    C0_PER_MEDAN,
+    C0_2_2_UD,
     HasilMKJI,
 )
 
@@ -84,38 +84,20 @@ class TestHitungVolumeSmp:
 
 class TestHitungKapasitasMkji:
 
-    def test_kapasitas_gunung_default(self):
-        """Kapasitas dasar medan gunung = 2100, semua FC = 1.0 maka 2100*0.9."""
-        kapasitas = hitung_kapasitas_mkji(medan="gunung")
-        # C0=2100, fc_w=0.90, fc_sp=1.0, fc_sf=1.0, fc_cs=1.0 -> 2100 * 0.9 = 1890
-        assert abs(kapasitas - 1890.0) < 0.01
-
-    def test_kapasitas_bukit(self):
-        """Kapasitas dasar medan bukit = 2500 * 0.9 = 2250."""
-        kapasitas = hitung_kapasitas_mkji(medan="bukit")
-        assert abs(kapasitas - 2250.0) < 0.01
-
-    def test_kapasitas_datar(self):
-        """Kapasitas dasar medan datar = 2900 * 0.9 = 2610."""
-        kapasitas = hitung_kapasitas_mkji(medan="datar")
+    def test_kapasitas_default(self):
+        """Kapasitas dasar 2/2 UD = 2900, default fc_w = 0.9 maka 2900*0.9 = 2610."""
+        kapasitas = hitung_kapasitas_mkji()
         assert abs(kapasitas - 2610.0) < 0.01
 
     def test_kapasitas_dengan_semua_fc_1(self):
         """Semua faktor koreksi = 1.0, fc_w = 1.0: kapasitas = C0 penuh."""
-        kapasitas = hitung_kapasitas_mkji(
-            medan="gunung", fc_w=1.0, fc_sp=1.0, fc_sf=1.0, fc_cs=1.0
-        )
-        assert abs(kapasitas - 2100.0) < 0.01
-
-    def test_medan_tidak_dikenal_raises(self):
-        """Medan tidak dikenal harus raise ValueError."""
-        with pytest.raises(ValueError, match="Medan"):
-            hitung_kapasitas_mkji(medan="lautan")
+        kapasitas = hitung_kapasitas_mkji(fc_w=1.0, fc_sp=1.0, fc_sf=1.0, fc_cs=1.0)
+        assert abs(kapasitas - 2900.0) < 0.01
 
     def test_fc_mengurangi_kapasitas(self):
         """Faktor koreksi < 1 mengurangi kapasitas."""
-        kapasitas_penuh = hitung_kapasitas_mkji(medan="gunung", fc_w=1.0)
-        kapasitas_dikurangi = hitung_kapasitas_mkji(medan="gunung", fc_w=0.85)
+        kapasitas_penuh = hitung_kapasitas_mkji(fc_w=1.0)
+        kapasitas_dikurangi = hitung_kapasitas_mkji(fc_w=0.85)
         assert kapasitas_dikurangi < kapasitas_penuh
 
 
@@ -129,34 +111,34 @@ class TestTentukanLosMkji:
         assert tentukan_los_mkji(0.0) == "A"
 
     def test_los_a_batas_atas(self):
-        assert tentukan_los_mkji(0.35) == "A"
+        assert tentukan_los_mkji(0.20) == "A"
 
     def test_los_b_batas_bawah(self):
-        assert tentukan_los_mkji(0.36) == "B"
+        assert tentukan_los_mkji(0.21) == "B"
 
     def test_los_b_batas_atas(self):
-        assert tentukan_los_mkji(0.54) == "B"
+        assert tentukan_los_mkji(0.44) == "B"
 
     def test_los_c_batas_bawah(self):
-        assert tentukan_los_mkji(0.55) == "C"
+        assert tentukan_los_mkji(0.45) == "C"
 
     def test_los_c_batas_atas(self):
-        assert tentukan_los_mkji(0.60) == "C"
+        assert tentukan_los_mkji(0.75) == "C"
 
     def test_los_d_batas_bawah(self):
-        assert tentukan_los_mkji(0.61) == "D"
+        assert tentukan_los_mkji(0.76) == "D"
 
     def test_los_d_batas_atas(self):
-        assert tentukan_los_mkji(0.80) == "D"
+        assert tentukan_los_mkji(0.84) == "D"
 
     def test_los_e_batas_bawah(self):
-        assert tentukan_los_mkji(0.81) == "E"
+        assert tentukan_los_mkji(0.85) == "E"
 
     def test_los_e_batas_atas(self):
-        assert tentukan_los_mkji(0.90) == "E"
+        assert tentukan_los_mkji(1.00) == "E"
 
     def test_los_f_batas_bawah(self):
-        assert tentukan_los_mkji(0.91) == "F"
+        assert tentukan_los_mkji(1.01) == "F"
 
     def test_los_f_sangat_tinggi(self):
         assert tentukan_los_mkji(2.0) == "F"
@@ -164,11 +146,11 @@ class TestTentukanLosMkji:
     def test_semua_batas_tepat(self):
         """Verifikasi semua nilai batas tepat di MKJI 1997."""
         batas = {
-            0.35: "A",
-            0.54: "B",
-            0.60: "C",
-            0.80: "D",
-            0.90: "E",
+            0.20: "A",
+            0.44: "B",
+            0.75: "C",
+            0.84: "D",
+            1.00: "E",
         }
         for rasio, los_expected in batas.items():
             assert tentukan_los_mkji(rasio) == los_expected, (
@@ -187,13 +169,13 @@ class TestKlasifikasiStatusMkji:
         assert klasifikasi_status_mkji(0.3) == "lancar"
 
     def test_tepat_di_batas_lancar(self):
-        assert klasifikasi_status_mkji(0.54) == "lancar"
+        assert klasifikasi_status_mkji(0.44) == "lancar"
 
     def test_padat(self):
         assert klasifikasi_status_mkji(0.70) == "padat"
 
     def test_tepat_di_batas_padat(self):
-        assert klasifikasi_status_mkji(0.90) == "padat"
+        assert klasifikasi_status_mkji(0.84) == "padat"
 
     def test_macet(self):
         assert klasifikasi_status_mkji(0.95) == "macet"
@@ -229,14 +211,13 @@ class TestEvaluasiMkji:
         """Cek bahwa rasio_vc = volume_smp / kapasitas."""
         hasil = evaluasi_mkji(
             {"motor": 1000, "mobil": 500},
-            medan="gunung",
             fc_w=0.90,
             fc_sp=1.0,
             fc_sf=1.0,
             fc_cs=1.0,
         )
         volume_expected = hitung_volume_smp({"motor": 1000, "mobil": 500})
-        kapasitas_expected = hitung_kapasitas_mkji("gunung", 0.90)
+        kapasitas_expected = hitung_kapasitas_mkji(0.90)
         vc_expected = volume_expected / kapasitas_expected
         assert abs(hasil.rasio_vc - round(vc_expected, 4)) < 0.0001
 
@@ -244,30 +225,28 @@ class TestEvaluasiMkji:
         """
         Contoh kalkulasi manual:
         - 450 motor/jam, 200 mobil/jam, 10 bus/jam, 30 truk/jam
-        - Medan gunung, fc_w=0.90
+        - fc_w=0.90
         - Volume smp = 450*0.4 + 200*1.0 + 10*3.25 + 30*5.0 = 562.5 smp/jam
-        - Kapasitas = 2100 * 0.9 = 1890 smp/jam
-        - V/C = 562.5 / 1890 ≈ 0.2976 -> LOS A -> lancar
+        - Kapasitas = 2900 * 0.9 = 2610 smp/jam
+        - V/C = 562.5 / 2610 ≈ 0.2155 -> LOS B -> lancar
         """
         hasil = evaluasi_mkji(
             {"motor": 450, "mobil": 200, "bus": 10, "truk": 30},
-            medan="gunung",
             fc_w=0.90,
         )
         assert abs(hasil.volume_smp_per_jam - 562.5) < 0.01
-        assert abs(hasil.kapasitas_smp_per_jam - 1890.0) < 0.01
-        assert abs(hasil.rasio_vc - round(562.5 / 1890, 4)) < 0.0001
-        assert hasil.level_of_service == "A"
+        assert abs(hasil.kapasitas_smp_per_jam - 2610.0) < 0.01
+        assert abs(hasil.rasio_vc - round(562.5 / 2610.0, 4)) < 0.0001
+        assert hasil.level_of_service == "B"
         assert hasil.status_label == "lancar"
 
     def test_kondisi_macet(self):
-        """Volume tinggi -> V/C > 0.9 -> LOS F -> macet."""
-        # Volume sangat tinggi agar V/C > 0.9
+        """Volume tinggi -> V/C > 1.0 -> LOS F -> macet."""
+        # Volume sangat tinggi agar V/C > 1.0
         hasil = evaluasi_mkji(
             {"motor": 5000, "mobil": 3000, "bus": 50, "truk": 100},
-            medan="gunung",
         )
-        assert hasil.rasio_vc > 0.9
+        assert hasil.rasio_vc > 1.0
         assert hasil.level_of_service == "F"
         assert hasil.status_label == "macet"
 

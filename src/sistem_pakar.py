@@ -103,16 +103,17 @@ def hitung_volume_meter_lajur(jumlah_per_kelas: Dict[str, int], panjang_kendaraa
 def tentukan_level_of_service(persentase_kepadatan: float) -> str:
     """
     Menentukan Level of Service (LOS) A-F berdasarkan persentase kepadatan.
+    Nilai diselaraskan dengan standar resmi MKJI 1997.
     """
-    if persentase_kepadatan <= 25.0:
+    if persentase_kepadatan <= 20.0:
         return "A"
-    elif persentase_kepadatan <= 50.0:
+    elif persentase_kepadatan <= 44.0:
         return "B"
-    elif persentase_kepadatan <= 60.0:
-        return "C"
     elif persentase_kepadatan <= 75.0:
+        return "C"
+    elif persentase_kepadatan <= 84.0:
         return "D"
-    elif persentase_kepadatan <= 90.0:
+    elif persentase_kepadatan <= 100.0:
         return "E"
     else:
         return "F"
@@ -120,8 +121,8 @@ def tentukan_level_of_service(persentase_kepadatan: float) -> str:
 
 def klasifikasi_status(
     persentase_kepadatan: float,
-    ambang_lancar: float = 50.0,
-    ambang_padat: float = 75.0,
+    ambang_lancar: float = 44.0,
+    ambang_padat: float = 84.0,
 ) -> str:
     """Menentukan status lancar/padat/macet berdasarkan persentase kepadatan meter-lajur."""
     if persentase_kepadatan <= ambang_lancar:
@@ -135,8 +136,8 @@ def klasifikasi_status(
 def klasifikasi_status_hybrid(
     persentase_kepadatan: float,
     kecepatan_rata2_kmh: Optional[float] = None,
-    ambang_lancar: float = 50.0,
-    ambang_padat: float = 75.0,
+    ambang_lancar: float = 44.0,
+    ambang_padat: float = 84.0,
     ambang_kecepatan_lambat_kmh: float = 15.0,
 ) -> str:
     """
@@ -201,8 +202,8 @@ def evaluasi(
     jumlah_per_kelas: Dict[str, int],
     kapasitas_meter_lajur: float,
     panjang_kendaraan: Dict[str, float],
-    ambang_lancar: float = 50.0,
-    ambang_padat: float = 75.0,
+    ambang_lancar: float = 44.0,
+    ambang_padat: float = 84.0,
     laju_masuk: float = None,
     laju_keluar: float = None,
     kecepatan_rata2_kmh: Optional[float] = None,

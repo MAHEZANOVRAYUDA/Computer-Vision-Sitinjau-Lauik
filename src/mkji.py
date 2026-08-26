@@ -44,12 +44,10 @@ EMP_GUNUNG: Dict[str, float] = {
     "truk": 5.0,
 }
 
-# Kapasitas dasar C0 (smp/jam, TOTAL 2 ARAH) — jalan 2/2 UD, MKJI Tabel 5-2
-C0_PER_MEDAN: Dict[str, float] = {
-    "datar": 2900.0,
-    "bukit": 2500.0,
-    "gunung": 2100.0,
-}
+# Kapasitas dasar C0 (smp/jam, TOTAL 2 ARAH) — jalan 2/2 UD, MKJI 1997 Tabel 5-2
+# PENTING: Nilai C0 untuk jalan 2/2 UD adalah 2900 smp/jam, tidak tergantung medan.
+# Pengaruh medan diakomodasi melalui faktor penyesuaian (FCw, FCsp, FCsf, FCcs).
+C0_2_2_UD = 2900.0
 
 
 @dataclass
@@ -82,7 +80,6 @@ def hitung_volume_smp(
 
 
 def hitung_kapasitas_mkji(
-    medan: str = "gunung",
     fc_w: float = 0.90,
     fc_sp: float = 1.00,
     fc_sf: float = 1.00,
@@ -91,38 +88,36 @@ def hitung_kapasitas_mkji(
     """
     C = C0 x FCw x FCsp x FCsf x FCcs (smp/jam, total 2 arah).
 
+    Menggunakan C0 = 2900 smp/jam untuk jalan 2/2 UD (Tabel 5-2 MKJI).
     Nilai default fc_w=0.90 mengasumsikan lebar jalur efektif
     3.0-3.5m (lihat docs/PARAMETER_MKJI.md). fc_sp=1.00 untuk jalan
     tak terbagi tanpa pemisah median. Sesuaikan berdasar kondisi
     aktual ruas dan hasil survei.
     """
-    if medan not in C0_PER_MEDAN:
-        raise ValueError(f"Medan '{medan}' tidak dikenal. Pilihan: {list(C0_PER_MEDAN)}")
-    c0 = C0_PER_MEDAN[medan]
-    return c0 * fc_w * fc_sp * fc_sf * fc_cs
+    return C0_2_2_UD * fc_w * fc_sp * fc_sf * fc_cs
 
 
 def tentukan_los_mkji(rasio_vc: float) -> str:
-    """LOS A-F berdasarkan rasio V/C, sesuai MKJI 1997."""
-    if rasio_vc <= 0.35:
+    """LOS A-F berdasarkan rasio V/C, sesuai standar resmi MKJI 1997."""
+    if rasio_vc <= 0.20:
         return "A"
-    elif rasio_vc <= 0.54:
+    elif rasio_vc <= 0.44:
         return "B"
-    elif rasio_vc <= 0.60:
+    elif rasio_vc <= 0.75:
         return "C"
-    elif rasio_vc <= 0.80:
+    elif rasio_vc <= 0.84:
         return "D"
-    elif rasio_vc <= 0.90:
+    elif rasio_vc <= 1.00:
         return "E"
     else:
         return "F"
 
 
-def klasifikasi_status_mkji(rasio_vc: float, ambang_lancar: float = 0.54, ambang_padat: float = 0.90) -> str:
+def klasifikasi_status_mkji(rasio_vc: float, ambang_lancar: float = 0.44, ambang_padat: float = 0.84) -> str:
     """
     Status operasional sederhana dari rasio V/C.
-    Ambang default sesuai docs/PARAMETER_MKJI.md bagian 3
-    (0.54 = batas LOS B, 0.90 = batas LOS E/F).
+    Ambang default sesuai MKJI 1997:
+    (0.44 = batas LOS B untuk lancar, 0.84 = batas LOS D untuk padat).
     """
     if rasio_vc <= ambang_lancar:
         return "lancar"
@@ -134,18 +129,17 @@ def klasifikasi_status_mkji(rasio_vc: float, ambang_lancar: float = 0.54, ambang
 
 def evaluasi_mkji(
     jumlah_per_kelas_per_jam: Dict[str, float],
-    medan: str = "gunung",
     fc_w: float = 0.90,
     fc_sp: float = 1.00,
     fc_sf: float = 1.00,
     fc_cs: float = 1.00,
     emp: Dict[str, float] = None,
-    ambang_lancar: float = 0.54,
-    ambang_padat: float = 0.90,
+    ambang_lancar: float = 0.44,
+    ambang_padat: float = 0.84,
 ) -> HasilMKJI:
     """Fungsi utama: volume -> smp/jam -> V/C -> LOS -> status, sesuai MKJI 1997."""
     volume_smp = hitung_volume_smp(jumlah_per_kelas_per_jam, emp=emp)
-    kapasitas = hitung_kapasitas_mkji(medan, fc_w, fc_sp, fc_sf, fc_cs)
+    kapasitas = hitung_kapasitas_mkji(fc_w, fc_sp, fc_sf, fc_cs)
 
     if kapasitas <= 0:
         raise ValueError("Kapasitas MKJI harus > 0. Periksa parameter fc_w/fc_sp/fc_sf/fc_cs.")

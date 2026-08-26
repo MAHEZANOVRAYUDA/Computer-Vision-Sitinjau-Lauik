@@ -50,7 +50,7 @@ kamera:
     nama: "Gerbang B - Jembatan Timbang Solok"
     gerbang: "B"
     source_type: "video_file"     # ganti ke "rtsp" setelah kamera fisik terpasang
-    source: "E:\\LPPM\\sitinjau-lauik-cv\\data\\videos\\test3.mp4"
+    source: "data/videos/test3.mp4"
     aktif: true
     stream_port: 9002
     counting_lines:
@@ -86,13 +86,14 @@ kamera:
 # 4. MODEL DETEKSI (YOLO)
 # ---------------------------------------------------------------------
 model:
-  # Path ke file model. Untuk mulai cepat pakai model pretrained COCO bawaan Ultralytics.
-  # Nanti idealnya di-fine-tune dengan data lokal Indonesia (motor sangat dominan, beda proporsi dgn COCO).
-  weights_path: "models/yolov8s.pt"
+  # Path ke file model. Gunakan model nano (yolov8n.pt) untuk performa real-time di Raspberry Pi.
+  weights_path: "models/yolov8n.pt"
 
-  # Ambang kepercayaan minimal deteksi (0-1). Naikkan jika banyak false positive,
-  # turunkan jika banyak kendaraan tidak terdeteksi.
-  confidence_threshold: 0.10
+  # Resolusi inferensi YOLO (resize ke ukuran ini, lebih kecil = lebih cepat). Default YOLO adalah 640.
+  inference_size: 416
+
+  # Ambang kepercayaan minimal deteksi (0-1). Naikkan jika banyak false positive.
+  confidence_threshold: 0.30
 
   # IoU threshold untuk Non-Max Suppression
   iou_threshold: 0.45
@@ -190,7 +191,7 @@ agregasi:
   interval_detik: 20
 
 mqtt:
-  broker_host: "localhost"
+  broker_host: "host.docker.internal"
   broker_port: 1883
   topic_prefix: "sitinjau_lauik"
   client_id: "gerbang_a_edge"

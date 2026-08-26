@@ -17,6 +17,7 @@ from typing import Dict, List, Optional
 
 import psycopg2
 import psycopg2.extras
+from psycopg2 import pool
 
 from src.config_loader import Config
 from src.logger import get_logger
@@ -34,23 +35,36 @@ class Database:
         self.name = config.get("database.name", "sitinjau_lauik_db")
         self.user = config.get("database.user", "postgres")
         self.password = config.get("database.password", "")
-        self._conn: Optional[psycopg2.extensions.connection] = None
+        self._pool: Optional[psycopg2.pool.SimpleConnectionPool] = None
 
     def hubungkan(self):
-        """Membuka koneksi ke database. Bisa dipanggil ulang untuk reconnect."""
+        """Membuka connection pool ke database. Bisa dipanggil ulang untuk reconnect."""
         try:
-            if self._conn is not None and not self._conn.closed:
-                self._conn.close()
-            self._conn = psycopg2.connect(
-                host=self.host,
-                port=self.port,
-                dbname=self.name,
-                user=self.user,
-                password=self.password,
-                connect_timeout=10,
-            )
-            self._conn.autocommit = True
-            logger.info(f"Terhubung ke database '{self.name}' di {self.host}:{self.port}")
+            if self._pool:
+                self._pool.closeall()
+                
+            # Coba hubungkan dengan retry sederhana
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    self._pool = psycopg2.pool.SimpleConnectionPool(
+                        1, 10, # min 1, max 10 connections
+                        host=self.host,
+                        port=self.port,
+                        dbname=self.name,
+                        user=self.user,
+                        password=self.password,
+                        connect_timeout=10,
+                    )
+                    if self._pool:
+                        logger.info(f"Connection pool terbuat untuk database '{self.name}' di {self.host}:{self.port}")
+                        break
+                except psycopg2.OperationalError as e:
+                    if attempt == max_retries - 1:
+                        raise e
+                    logger.warning(f"Gagal koneksi, mencoba lagi... ({attempt+1}/{max_retries})")
+                    time.sleep(2)
+                    
         except Exception as e:
             logger.error(f"Gagal terhubung ke database: {e}")
             logger.error(
@@ -59,51 +73,44 @@ class Database:
             )
             raise
 
-    def _ensure_connected(self):
-        """
-        Memastikan koneksi database aktif. Jika koneksi drop (setelah idle
-        lama, atau jaringan putus sesaat), reconnect otomatis sebelum query.
-
-        Ini mencegah error 'connection already closed' yang membutuhkan
-        restart manual proses server.
-        """
-        try:
-            if self._conn is None or self._conn.closed:
-                logger.warning("Koneksi DB tidak ada/tertutup, mencoba reconnect...")
-                self.hubungkan()
-                return
-            # Ping koneksi dengan query ringan
-            with self._conn.cursor() as cur:
-                cur.execute("SELECT 1")
-        except psycopg2.OperationalError:
-            logger.warning("Koneksi DB terputus, mencoba reconnect...")
+    def _ensure_pool(self):
+        """Memastikan connection pool aktif."""
+        if self._pool is None or self._pool.closed:
+            logger.warning("Connection pool tidak ada/tertutup, mencoba membuat ulang...")
             self.hubungkan()
-        except Exception as e:
-            logger.error(f"Error saat cek koneksi DB: {e}")
-            raise
 
     @contextmanager
     def _cursor(self):
-        """
-        Context manager untuk mendapatkan cursor dengan auto-reconnect.
-        Menjamin cursor selalu ditutup setelah dipakai.
-        """
-        self._ensure_connected()
-        cursor = self._conn.cursor()
+        """Context manager untuk mendapatkan cursor dari pool connection."""
+        self._ensure_pool()
+        conn = self._pool.getconn()
         try:
-            yield cursor
+            conn.autocommit = True
+            with conn.cursor() as cursor:
+                yield cursor
+        except psycopg2.OperationalError as e:
+            logger.warning(f"Koneksi dari pool gagal, reconnecting pool: {e}")
+            # Jika koneksi mati, kita tutup pool dan raise, sehingga akan dibikin baru nntinya
+            self.hubungkan()
+            raise
         finally:
-            cursor.close()
+            self._pool.putconn(conn)
 
     @contextmanager
     def _dict_cursor(self):
         """Context manager seperti _cursor() tapi mengembalikan RealDictCursor."""
-        self._ensure_connected()
-        cursor = self._conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        self._ensure_pool()
+        conn = self._pool.getconn()
         try:
-            yield cursor
+            conn.autocommit = True
+            with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cursor:
+                yield cursor
+        except psycopg2.OperationalError as e:
+            logger.warning(f"Koneksi dari pool gagal, reconnecting pool: {e}")
+            self.hubungkan()
+            raise
         finally:
-            cursor.close()
+            self._pool.putconn(conn)
 
     def simpan_hitungan_interval(
         self,
@@ -305,6 +312,6 @@ class Database:
             return cursor.fetchall()
 
     def tutup(self):
-        if self._conn is not None and not self._conn.closed:
-            self._conn.close()
-            logger.info("Koneksi database ditutup.")
+        if self._pool is not None:
+            self._pool.closeall()
+            logger.info("Connection pool database ditutup.")

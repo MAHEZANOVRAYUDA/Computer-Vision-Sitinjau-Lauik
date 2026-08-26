@@ -15,7 +15,7 @@ if %ERRORLEVEL% NEQ 0 (
         echo [WARN] Mosquitto tidak ditemukan di PATH.
     ) else (
         start "Mosquitto" mosquitto
-        timeout /t 2 /nobreak >nul
+        ping 127.0.0.1 -n 3 > nul
         echo [OK]  Mosquitto dijalankan.
     )
 ) else (
@@ -28,17 +28,17 @@ if not exist "data\logs" mkdir "data\logs"
 REM --- Jalankan API Server di window baru ---
 echo [2/5] Menjalankan API Server (http://localhost:8000)...
 start "Sitinjau-API-Server" cmd /k "C:\Users\aseps\AppData\Local\Programs\Python\Python313\python.exe src\api_server.py"
-timeout /t 3 /nobreak >nul
+ping 127.0.0.1 -n 3 > nul
 
 REM --- Jalankan MQTT Consumer di window baru ---
 echo [3/5] Menjalankan MQTT Consumer...
 start "Sitinjau-MQTT-Consumer" cmd /k "C:\Users\aseps\AppData\Local\Programs\Python\Python313\python.exe src\mqtt_consumer.py"
-timeout /t 2 /nobreak >nul
+ping 127.0.0.1 -n 3 > nul
 
 REM --- Jalankan Edge Detector Gerbang A di window baru ---
 echo [4/5] Menjalankan Edge Detector - Gerbang A...
 start "Sitinjau-Edge-Gerbang-A" cmd /k "C:\Users\aseps\AppData\Local\Programs\Python\Python313\python.exe src\main.py --config config\config_gerbang_a.yaml"
-timeout /t 3 /nobreak >nul
+ping 127.0.0.1 -n 3 > nul
 
 REM --- Jalankan Edge Detector Gerbang B di window baru ---
 echo [5/5] Menjalankan Edge Detector - Gerbang B...
@@ -46,7 +46,7 @@ start "Sitinjau-Edge-Gerbang-B" cmd /k "C:\Users\aseps\AppData\Local\Programs\Py
 
 REM --- Buka dashboard di browser ---
 echo [OK] Membuka dashboard di browser...
-timeout /t 2 /nobreak >nul
+ping 127.0.0.1 -n 3 > nul
 start "" "http://localhost:8000"
 
 echo.

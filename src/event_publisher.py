@@ -53,17 +53,28 @@ class EventPublisher:
             client_id=self.client_id,
             callback_api_version=mqtt.CallbackAPIVersion.VERSION2,
         )
+        
+        # Set Last Will and Testament (LWT)
+        lwt_topic = f"{self.topic_prefix}/{self.client_id}/status"
+        self.client.will_set(lwt_topic, json.dumps({"status": "offline", "timestamp": time.time()}), qos=1, retain=True)
+
         self.client.on_connect = self._on_connect
         self.client.on_disconnect = self._on_disconnect
         self._terhubung = False
 
         # Pastikan direktori buffer ada
         self._buffer_path.parent.mkdir(parents=True, exist_ok=True)
+        self.max_buffer_bytes = 5 * 1024 * 1024  # 5 MB limit
 
     def _on_connect(self, client, userdata, flags, reason_code, properties=None):
         if reason_code == 0:
             self._terhubung = True
             logger.info(f"[MQTT] Terhubung ke broker {self.host}:{self.port}")
+            
+            # Publish status online
+            status_topic = f"{self.topic_prefix}/{self.client_id}/status"
+            self.client.publish(status_topic, json.dumps({"status": "online", "timestamp": time.time()}), qos=1, retain=True)
+            
             # Drain buffer lokal — kirim ulang event yang tertunda saat offline
             self._drain_buffer()
         else:
@@ -86,6 +97,13 @@ class EventPublisher:
         Dipanggil saat MQTT tidak terhubung agar event tidak hilang.
         """
         try:
+            if self._buffer_path.exists() and self._buffer_path.stat().st_size > self.max_buffer_bytes:
+                logger.warning("[MQTT Buffer] Buffer lokal melebihi batas 5MB. Mengosongkan data lama.")
+                backup_path = self._buffer_path.with_suffix(".jsonl.bak")
+                if backup_path.exists():
+                    backup_path.unlink()
+                self._buffer_path.rename(backup_path)
+
             with open(self._buffer_path, "a", encoding="utf-8") as f:
                 f.write(json.dumps({"topic": topic, "payload": payload_str}) + "\n")
             logger.debug(f"[MQTT Buffer] Event disimpan ke buffer lokal: {topic}")

@@ -32,13 +32,17 @@ class DetektorKendaraan:
         self.kamera_config = kamera_config
         self.publisher = publisher
 
-        logger.info(f"Memuat model YOLO dari: {config.get('model.weights_path')}")
-        self.model = YOLO(config.get("model.weights_path"))
+        # Model loading
+        weights_path = config.get("model.weights_path")
+        logger.info(f"Memuat model YOLO dari: {weights_path}")
+        self.model = YOLO(weights_path)
 
         self.device = config.get("model.device", "cpu")
-        self.confidence = config.get("model.confidence_threshold", 0.35)
-        self.iou = config.get("model.iou_threshold", 0.5)
+        self.confidence = config.get("model.confidence_threshold", 0.30)
+        self.iou = config.get("model.iou_threshold", 0.45)
         self.tracker_cfg = config.get("tracker.type", "bytetrack.yaml")
+        self.inference_size = config.get("model.inference_size", 416)
+        self.use_half = config.get("model.half_precision", self.device == "cuda")
 
         self.coco_mapping = {
             int(k): v for k, v in config.get("model.coco_class_mapping", {}).items()
@@ -59,6 +63,12 @@ class DetektorKendaraan:
         self.kecepatan_interval: List[float] = []
 
         self.gerbang_id = self.kamera_config.get("id", "gerbang_a")
+
+        logger.info(
+            f"Detektor siap: device={self.device} | conf={self.confidence} | "
+            f"iou={self.iou} | imgsz={self.inference_size} | "
+            f"half={self.use_half} | kelas={list(self.coco_mapping.values())}"
+        )
 
     def _buat_garis_dari_config(self) -> List[GarisVirtual]:
         garis_list = []
@@ -121,8 +131,8 @@ class DetektorKendaraan:
             device=self.device,
             classes=list(self.kelas_relevan),
             verbose=False,
-            imgsz=640,
-            half=(self.device == "cuda"),
+            imgsz=self.inference_size,
+            half=self.use_half,
         )[0]
 
         track_id_aktif = []

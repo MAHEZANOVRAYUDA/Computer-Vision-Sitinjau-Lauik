@@ -154,27 +154,27 @@ class TestHitungVolumeMeterLajur:
 class TestTentukanLevelOfService:
     def test_los_a(self):
         assert tentukan_level_of_service(0) == "A"
-        assert tentukan_level_of_service(25) == "A"
+        assert tentukan_level_of_service(20) == "A"
 
     def test_los_b(self):
-        assert tentukan_level_of_service(25.01) == "B"
-        assert tentukan_level_of_service(50) == "B"
+        assert tentukan_level_of_service(20.01) == "B"
+        assert tentukan_level_of_service(44) == "B"
 
     def test_los_c(self):
-        assert tentukan_level_of_service(50.01) == "C"
-        assert tentukan_level_of_service(60) == "C"
+        assert tentukan_level_of_service(44.01) == "C"
+        assert tentukan_level_of_service(75) == "C"
 
     def test_los_d(self):
-        assert tentukan_level_of_service(60.01) == "D"
-        assert tentukan_level_of_service(75) == "D"
+        assert tentukan_level_of_service(75.01) == "D"
+        assert tentukan_level_of_service(84) == "D"
 
     def test_los_e(self):
-        assert tentukan_level_of_service(75.01) == "E"
-        assert tentukan_level_of_service(90) == "E"
+        assert tentukan_level_of_service(84.01) == "E"
+        assert tentukan_level_of_service(100) == "E"
 
     def test_los_f(self):
-        assert tentukan_level_of_service(90.01) == "F"
-        assert tentukan_level_of_service(100) == "F"
+        assert tentukan_level_of_service(100.01) == "F"
+        assert tentukan_level_of_service(110) == "F"
 
 
 # =========================================================================
@@ -184,14 +184,14 @@ class TestTentukanLevelOfService:
 class TestKlasifikasiStatus:
     def test_lancar(self):
         assert klasifikasi_status(0) == "lancar"
-        assert klasifikasi_status(50) == "lancar"
+        assert klasifikasi_status(44) == "lancar"
 
     def test_padat(self):
-        assert klasifikasi_status(50.01) == "padat"
-        assert klasifikasi_status(75) == "padat"
+        assert klasifikasi_status(44.01) == "padat"
+        assert klasifikasi_status(84) == "padat"
 
     def test_macet(self):
-        assert klasifikasi_status(75.01) == "macet"
+        assert klasifikasi_status(84.01) == "macet"
         assert klasifikasi_status(100) == "macet"
 
     def test_custom_ambang(self):
@@ -207,7 +207,7 @@ class TestKlasifikasiStatus:
 class TestKlasifikasiStatusHybrid:
     def test_tanpa_kecepatan_sama_dengan_volume_only(self):
         """Jika kecepatan None, harus identik dengan klasifikasi_status biasa."""
-        for pct in [10, 50, 75, 90]:
+        for pct in [10, 44, 75, 90]:
             assert klasifikasi_status_hybrid(pct, kecepatan_rata2_kmh=None) == \
                    klasifikasi_status(pct)
 
@@ -229,7 +229,7 @@ class TestKlasifikasiStatusHybrid:
         """Kecepatan normal (misalnya 40 km/jam) → ikut status volume."""
         assert klasifikasi_status_hybrid(10.0, kecepatan_rata2_kmh=40.0) == "lancar"
         assert klasifikasi_status_hybrid(60.0, kecepatan_rata2_kmh=40.0) == "padat"
-        assert klasifikasi_status_hybrid(80.0, kecepatan_rata2_kmh=40.0) == "macet"
+        assert klasifikasi_status_hybrid(90.0, kecepatan_rata2_kmh=40.0) == "macet"
 
     def test_custom_ambang_kecepatan(self):
         """Test dengan ambang kecepatan custom."""
@@ -290,13 +290,13 @@ class TestEvaluasi:
 
     def test_skenario_sangat_padat(self):
         """Skenario ekstrem: jalan penuh kendaraan."""
-        # 9000 mobil (hampir penuh kapasitas)
+        # 9500 mobil (lebih dari kapasitas penuh)
         hasil = evaluasi(
-            jumlah_per_kelas={"mobil": 9000},
+            jumlah_per_kelas={"mobil": 9500},
             kapasitas_meter_lajur=self.KAPASITAS,
             panjang_kendaraan=self.PANJANG_KDR,
         )
-        # 9000 × 6 = 54000 / 56100 = 96.25% → MACET
+        # 9500 × 6 = 57000 / 56100 = 101.60% → MACET
         assert hasil.status_label == "macet"
         assert hasil.level_of_service == "F"
 

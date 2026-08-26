@@ -99,10 +99,11 @@ kamera:
 # 4. MODEL DETEKSI (YOLO) — sama di semua node
 # ---------------------------------------------------------------------
 model:
-  weights_path: "models/yolov8s.pt"
-  confidence_threshold: 0.15
+  weights_path: "models/yolov8n.pt"
+  inference_size: 416
+  confidence_threshold: 0.30
   iou_threshold: 0.45
-  device: "cuda"
+  device: "cpu"
 
   # Mapping COCO class ID → kategori kendaraan lokal
   coco_class_mapping:
@@ -160,7 +161,7 @@ agregasi:
   interval_detik: 20    # 20 detik untuk testing; naikkan ke 60 saat deploy live
 
 mqtt:
-  broker_host: "localhost"
+  broker_host: "host.docker.internal"
   broker_port: 1883
   topic_prefix: "sitinjau_lauik"
   client_id: "gerbang_a_edge"         # HARUS UNIK per node
@@ -179,7 +180,7 @@ database:
 # 11. TAMPILAN / DEBUG — Gerbang A
 # ---------------------------------------------------------------------
 tampilan:
-  tampilkan_window: true
+  tampilkan_window: false
   tampilkan_garis_virtual: true
   simpan_video_output: false
   path_video_output: "data/logs/output_gerbang_a.mp4"

@@ -1,10 +1,13 @@
 import time
 import threading
+import asyncio
 import cv2
-from flask import Flask, Response
+import uvicorn
+from fastapi import FastAPI
+from fastapi.responses import StreamingResponse
 import logging
 
-app = Flask(__name__)
+app = FastAPI()
 _global_frame = None
 _global_frame_lock = threading.Lock()
 
@@ -13,18 +16,18 @@ def update_frame(frame):
     with _global_frame_lock:
         _global_frame = frame.copy() if frame is not None else None
 
-def generate_frames():
+async def generate_frames():
     while True:
         with _global_frame_lock:
             frame_copy = _global_frame.copy() if _global_frame is not None else None
 
         if frame_copy is None:
-            time.sleep(0.05)
+            await asyncio.sleep(0.05)
             continue
 
         ret, buffer = cv2.imencode(".jpg", frame_copy)
         if not ret:
-            time.sleep(0.05)
+            await asyncio.sleep(0.05)
             continue
 
         frame_bytes = buffer.tobytes()
@@ -32,16 +35,18 @@ def generate_frames():
             b"--frame\r\n"
             b"Content-Type: image/jpeg\r\n\r\n" + frame_bytes + b"\r\n"
         )
-        time.sleep(0.05)
+        await asyncio.sleep(0.05)
 
-@app.route("/video_feed")
-def video_feed():
-    return Response(generate_frames(), mimetype="multipart/x-mixed-replace; boundary=frame")
+@app.get("/video_feed")
+async def video_feed():
+    return StreamingResponse(generate_frames(), media_type="multipart/x-mixed-replace; boundary=frame")
 
-def run_flask(port: int):
-    log = logging.getLogger("werkzeug")
-    log.setLevel(logging.ERROR)
-    app.run(host="0.0.0.0", port=port, debug=False, use_reloader=False)
+def run_server(port: int):
+    # Mengurangi noise logging dari uvicorn agar tidak menumpuk saat melayani banyak frame
+    log_config = uvicorn.config.LOGGING_CONFIG
+    log_config["loggers"]["uvicorn.access"]["level"] = "WARNING"
+    uvicorn.run(app, host="0.0.0.0", port=port, log_config=log_config)
 
 def start_stream_server(port: int):
-    threading.Thread(target=run_flask, args=(port,), daemon=True).start()
+    threading.Thread(target=run_server, args=(port,), daemon=True).start()
+

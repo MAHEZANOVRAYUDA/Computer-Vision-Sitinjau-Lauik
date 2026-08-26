@@ -9,7 +9,7 @@ Fokus pengujian:
 3. ambil_occupancy_hari_ini() menghitung net occupancy dengan benar
 
 Strategi mocking:
-- `_ensure_connected()` di-bypass dengan langsung set `db._conn` yang sudah terhubung
+- `_ensure_pool()` di-bypass dengan langsung set `db._pool` yang sudah ter-mock
 - Cursor di-mock sebagai context manager yang kompatibel dengan `@contextmanager _cursor()`
 
 Cara menjalankan:
@@ -44,7 +44,7 @@ def buat_db_mock():
     })
     db = Database(config)
 
-    # Setup mock connection
+    # Setup mock connection & pool
     mock_conn = MagicMock()
     mock_conn.closed = False
 
@@ -54,7 +54,11 @@ def buat_db_mock():
     mock_cursor.__exit__ = MagicMock(return_value=False)
     mock_conn.cursor.return_value = mock_cursor
 
-    db._conn = mock_conn
+    mock_pool = MagicMock()
+    mock_pool.getconn.return_value = mock_conn
+    mock_pool.closed = False
+
+    db._pool = mock_pool
 
     return db, mock_conn, mock_cursor
 
@@ -70,7 +74,7 @@ class TestSimpanHitunganInterval:
         db, mock_conn, mock_cursor = buat_db_mock()
 
         # Patch _ensure_connected supaya tidak melakukan SELECT 1
-        with patch.object(db, '_ensure_connected'):
+        with patch.object(db, '_ensure_pool'):
             db.simpan_hitungan_interval(
                 gerbang_id="gerbang_a",
                 timestamp_interval="2024-01-01 08:00:00",
@@ -84,7 +88,7 @@ class TestSimpanHitunganInterval:
         """Key dengan jumlah=0 tidak boleh menghasilkan INSERT."""
         db, mock_conn, mock_cursor = buat_db_mock()
 
-        with patch.object(db, '_ensure_connected'):
+        with patch.object(db, '_ensure_pool'):
             db.simpan_hitungan_interval(
                 gerbang_id="gerbang_a",
                 timestamp_interval="2024-01-01 08:00:00",
@@ -100,7 +104,7 @@ class TestSimpanHitunganInterval:
         """
         db, mock_conn, mock_cursor = buat_db_mock()
 
-        with patch.object(db, '_ensure_connected'), \
+        with patch.object(db, '_ensure_pool'), \
              caplog.at_level(logging.WARNING):
             db.simpan_hitungan_interval(
                 gerbang_id="gerbang_a",
@@ -120,7 +124,7 @@ class TestSimpanHitunganInterval:
         """Key dengan arah bukan 'masuk'/'keluar' harus di-skip dengan warning."""
         db, mock_conn, mock_cursor = buat_db_mock()
 
-        with patch.object(db, '_ensure_connected'), \
+        with patch.object(db, '_ensure_pool'), \
              caplog.at_level(logging.WARNING):
             db.simpan_hitungan_interval(
                 gerbang_id="gerbang_a",
@@ -135,7 +139,7 @@ class TestSimpanHitunganInterval:
         """Campuran key valid dan invalid: hanya yang valid yang diinsert."""
         db, mock_conn, mock_cursor = buat_db_mock()
 
-        with patch.object(db, '_ensure_connected'):
+        with patch.object(db, '_ensure_pool'):
             db.simpan_hitungan_interval(
                 gerbang_id="gerbang_a",
                 timestamp_interval="2024-01-01 08:00:00",
@@ -176,7 +180,7 @@ class TestAmbilHitunganTerbaru:
         db, mock_conn, mock_cursor = buat_db_mock()
         mock_cursor.fetchall.return_value = []
 
-        with patch.object(db, '_ensure_connected'):
+        with patch.object(db, '_ensure_pool'):
             db.ambil_hitungan_terbaru(menit_terakhir=5)
 
         # Hanya 1 execute (query SELECT utama)
@@ -195,7 +199,7 @@ class TestAmbilHitunganTerbaru:
         db, mock_conn, mock_cursor = buat_db_mock()
         mock_cursor.fetchall.return_value = []
 
-        with patch.object(db, '_ensure_connected'):
+        with patch.object(db, '_ensure_pool'):
             db.ambil_hitungan_terbaru(menit_terakhir=10)
 
         params = mock_cursor.execute.call_args[0][1]
@@ -214,7 +218,7 @@ class TestAmbilRiwayatStatus:
         db, mock_conn, mock_cursor = buat_db_mock()
         mock_cursor.fetchall.return_value = []
 
-        with patch.object(db, '_ensure_connected'):
+        with patch.object(db, '_ensure_pool'):
             db.ambil_riwayat_status(jam_terakhir=24)
 
         sql_dieksekusi = mock_cursor.execute.call_args[0][0]
@@ -237,7 +241,7 @@ class TestAmbilOccupancyHariIni:
             {"arah": "masuk",  "jenis_kendaraan": "mobil", "total": 20},
         ]
 
-        with patch.object(db, '_ensure_connected'):
+        with patch.object(db, '_ensure_pool'):
             hasil = db.ambil_occupancy_hari_ini()
 
         assert hasil["motor"] == 20
@@ -251,7 +255,7 @@ class TestAmbilOccupancyHariIni:
             {"arah": "keluar", "jenis_kendaraan": "motor", "total": 50},
         ]
 
-        with patch.object(db, '_ensure_connected'):
+        with patch.object(db, '_ensure_pool'):
             hasil = db.ambil_occupancy_hari_ini()
 
         assert hasil.get("motor", 0) == 0
@@ -261,7 +265,7 @@ class TestAmbilOccupancyHariIni:
         db, mock_conn, mock_cursor = buat_db_mock()
         mock_cursor.fetchall.return_value = []
 
-        with patch.object(db, '_ensure_connected'):
+        with patch.object(db, '_ensure_pool'):
             hasil = db.ambil_occupancy_hari_ini()
 
         assert hasil == {}
@@ -283,7 +287,7 @@ class TestAmbilKumulatifMasukKeluarPerGerbang:
             {"id_gerbang": "gerbang_b", "arah": "keluar", "jenis_kendaraan": "mobil", "total": 30},
         ]
 
-        with patch.object(db, '_ensure_connected'):
+        with patch.object(db, '_ensure_pool'):
             hasil = db.ambil_kumulatif_masuk_keluar_per_gerbang()
 
         assert hasil["gerbang_a_masuk"]["motor"] == 120
@@ -296,7 +300,7 @@ class TestAmbilKumulatifMasukKeluarPerGerbang:
         db, mock_conn, mock_cursor = buat_db_mock()
         mock_cursor.fetchall.return_value = []
 
-        with patch.object(db, '_ensure_connected'):
+        with patch.object(db, '_ensure_pool'):
             hasil = db.ambil_kumulatif_masuk_keluar_per_gerbang()
 
         assert hasil == {}
@@ -308,7 +312,7 @@ class TestAmbilKumulatifMasukKeluarPerGerbang:
             {"id_gerbang": "gerbang_a", "arah": "masuk", "jenis_kendaraan": "truk", "total": None},
         ]
 
-        with patch.object(db, '_ensure_connected'):
+        with patch.object(db, '_ensure_pool'):
             hasil = db.ambil_kumulatif_masuk_keluar_per_gerbang()
 
         # total=None harus dikonversi ke 0
@@ -319,7 +323,7 @@ class TestAmbilKumulatifMasukKeluarPerGerbang:
         db, mock_conn, mock_cursor = buat_db_mock()
         mock_cursor.fetchall.return_value = []
 
-        with patch.object(db, '_ensure_connected'):
+        with patch.object(db, '_ensure_pool'):
             db.ambil_kumulatif_masuk_keluar_per_gerbang()
 
         sql_dieksekusi = mock_cursor.execute.call_args[0][0]

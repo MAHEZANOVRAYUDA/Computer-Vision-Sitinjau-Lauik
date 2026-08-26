@@ -1,114 +1,180 @@
-# AI-Powered Traffic Monitoring System (Sitinjau Lauik)
+# 🚦 Sitinjau Lauik AI Traffic Monitoring System
 
-Sistem ini adalah solusi cerdas terintegrasi berbasis Computer Vision (AI) dan Internet of Things (IoT) untuk mendeteksi, menghitung, dan menganalisis tingkat kemacetan lalu lintas secara *real-time* di ruas jalan ekstrem Sitinjau Lauik (Padang - Solok).
+![Status](https://img.shields.io/badge/Status-Production%20Ready-success)
+![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)
+![AI](https://img.shields.io/badge/AI-YOLOv8-orange.svg)
+![IoT](https://img.shields.io/badge/Protocol-MQTT-yellow.svg)
 
-Sistem ini dirancang dengan arsitektur **Microservices / Event-Driven (MQTT)** yang memisahkan antara proses deteksi berat di ujung (*Edge AI*) dengan proses analitik dan penyajian data di Pusat (*Core Server*), sehingga sistem menjadi *scalable*, tangguh (*robust*), dan berstandar industri.
+Sistem cerdas berbasis **Computer Vision (AI)** dan **Internet of Things (IoT)** untuk mendeteksi, menghitung, dan menganalisis tingkat kemacetan lalu lintas secara *real-time* di ruas jalan ekstrem **Sitinjau Lauik (Padang - Solok)**. 
 
----
-
-## 1. Arsitektur Sistem (Clean Architecture)
-
-Sistem dibagi menjadi 4 layer utama yang saling lepas (*decoupled*):
-
-1. **Edge AI Layer (`src/main.py`, `src/detector.py`)**
-   - Berjalan di perangkat lokal di lapangan (misal Jetson Nano / PC).
-   - Membaca RTSP stream dari IP Camera atau video lokal.
-   - Melakukan deteksi objek (YOLOv8) dan pelacakan (ByteTrack).
-   - Menghitung kendaraan yang melewati *Virtual Counting Line*.
-   - Mengagregasi data setiap 20 detik dan mengirimkannya via protokol MQTT.
-2. **Transport Layer (MQTT Broker)**
-   - Berfungsi sebagai jembatan komunikasi yang sangat ringan dan cepat.
-   - Menggunakan Mosquitto MQTT. Topik: `sitinjau_lauik/{gerbang_id}/agregasi`.
-3. **Core Server Layer (`src/mqtt_consumer.py`, `src/sistem_pakar.py`, `src/database.py`)**
-   - Berjalan di cloud atau server pusat.
-   - Menerima pesan MQTT dari banyak gerbang secara bersamaan.
-   - Menyimpan raw data ke PostgreSQL.
-   - Menghitung *Occupancy* (kepadatan ruas) menggunakan algoritma selisih antar gerbang.
-   - Menjalankan **Sistem Pakar (Rule-based)** untuk menentukan status (LANCAR/PADAT/MACET).
-4. **Presentation Layer (`src/api_server.py`, `dashboard/`)**
-   - REST API (FastAPI) dan antarmuka web modern.
-   - Menggunakan **WebSocket** (`/ws/live`) untuk mendorong (push) data metrik secara *real-time* ke browser klien tanpa membebani server dengan *polling*.
+Proyek ini dirancang secara khusus untuk berjalan di *Edge Device* (seperti **Raspberry Pi 8GB/16GB**) terhubung ke **2 Kamera CCTV (Gerbang Padang Besi & Gerbang Jembatan Timbang Solok)**, menggunakan jaringan nirkabel/Wi-Fi dengan lalu lintas data yang sangat efisien.
 
 ---
 
-## 2. Metodologi, Rumus, dan Logika Perhitungan
+## 🏗️ 1. Arsitektur Sistem (Event-Driven Microservices)
 
-Agar *AI Engine* di masa depan (Claude/GLM) dapat menganalisis dan meningkatkan sistem ini, berikut adalah landasan matematis yang digunakan:
+Sistem dibagi menjadi 4 layer utama yang saling lepas (*decoupled*) agar tangguh, efisien, dan *scalable*:
 
-### A. Deteksi & Tracking (Computer Vision)
-- **Model:** YOLOv8 (Ultralytics) untuk Object Detection (terkalibrasi untuk kelas: Motor, Mobil, Bus, Truk).
-- **Tracker:** ByteTrack untuk melacak pergerakan (*trajectory*) dan ID kendaraan antar *frame* agar tidak terjadi perhitungan ganda (*double counting*).
-- **Penghitungan Garis (Line Crossing):** Vektor pergerakan dihitung dengan *dot product* dan penyeberangan dideteksi ketika titik pusat *bounding box* memotong garis virtual (*Point-Line Position*).
+1. **Edge AI Layer (`src/main.py`)** - *Berjalan di Raspberry Pi (Edge)*
+   - Membaca RTSP stream dari 2 CCTV secara multi-threading.
+   - Deteksi objek dengan model **YOLOv8 Nano** (teroptimasi 416x416).
+   - Melacak pergerakan (*ByteTrack*) dan menghitung kendaraan yang melewati garis (*Line Crossing*).
+   - Hanya mengirim data JSON super-ringan setiap 20 detik ke pusat. (Dilengkapi *Watchdog* otomatis).
+2. **Transport Layer (MQTT Broker)** - *Jembatan Komunikasi*
+   - Menggunakan **Eclipse Mosquitto**.
+   - Dilengkapi sistem *Local Buffer* 5MB (data tidak hilang meski sinyal Wi-Fi putus sementara) dan *Last Will and Testament (LWT)*.
+3. **Core Server Layer (`src/mqtt_consumer.py`)** - *Berjalan di Server Pusat*
+   - Menerima data dari kedua gerbang secara sinkron.
+   - Menghitung **Occupancy** (Selisih kendaraan Masuk vs Keluar).
+   - Menjalankan evaluasi kemacetan berdasarkan pedoman **MKJI 1997** dan **Sistem Pakar**.
+   - Menyimpan hasil metrik ke dalam database PostgreSQL (*Connection Pooling*).
+4. **Presentation Layer (`src/api_server.py`)** - *Dashboard*
+   - REST API (FastAPI) yang mem-push data secara *real-time* via **WebSocket** ke browser klien.
 
-### B. Kapasitas Volumetrik Ruas (KVR)
-Kapasitas jalan tidak dihitung per lajur standar, melainkan menggunakan spesifikasi lebar jalan ekstrem Sitinjau Lauik.
-**Rumus:**
-```math
-KVR = (Panjang \times \%_{Sempit} \times Kap_{Sempit}) + (Panjang \times \%_{Lebar} \times Kap_{Lebar})
+---
+
+## 📊 2. Logika Perhitungan & Dasar Teori (Standard MKJI 1997)
+
+Sistem ini tidak hanya menebak kemacetan, melainkan menggunakan standar **Manual Kapasitas Jalan Indonesia (MKJI) 1997** untuk jalan 2/2 UD (Dua Lajur Dua Arah Tak Terbagi):
+
+### A. Kapasitas Jalan ($C$)
+Berdasarkan MKJI 1997, Kapasitas Dasar ($C_0$) untuk jalan 2/2 UD adalah konstan: **2900 smp/jam**.
+Kapasitas aktual disesuaikan dengan faktor koreksi jalan ekstrem pegunungan:
+```text
+C = C0 × FCW × FCSP × FCSF × FCCS
+Dimana:
+C0   = 2900 smp/jam
+FCW  = Faktor lebar jalur
+FCSP = Faktor pemisahan arah
+FCSF = Faktor hambatan samping
+FCCS = Faktor ukuran kota
 ```
-*Contoh:* Untuk jalan 16.5km, dengan 65% area sempit (muat 2 mobil) dan 35% area lebar (muat 6 mobil), KVR diukur dalam satuan *meter-lajur*.
 
-### C. Volume Aktual Kendaraan (Meter-Lajur)
-Mengonversi jumlah kendaraan mentah menjadi bobot panjangnya.
-**Rumus:**
-```math
-Volume = \sum (Jumlah_{Kelas} \times Panjang_{Kelas})
-```
-*(Asumsi panjang: Motor=2.5m, Mobil=6.0m, Truk=12.0m, Bus=14.0m).*
+### B. Ekuivalensi Mobil Penumpang (EMP)
+Karena kontur pegunungan (Sitinjau Lauik), bobot kendaraan berat memakan ruang lebih besar:
+- Sepeda Motor (MC): **0.40 smp**
+- Kendaraan Ringan / Mobil (LV): **1.00 smp**
+- Kendaraan Berat (HV - Bus & Truk): **1.30 smp** (Medan Gunung/Curam)
 
-### D. Estimasi Occupancy (Selisih Kumulatif Dual Gerbang)
-Karena ruas Sitinjau Lauik merupakan *closed-system* panjang tanpa banyak persimpangan besar, kepadatan di tengah hutan diestimasi murni dari ujung-ujungnya.
-**Rumus:**
-```math
-Occupancy = (Masuk_A + Masuk_B) - (Keluar_A + Keluar_B)
-```
-*(Catatan: Rumus ini menggunakan akumulasi reset harian untuk mencegah drift jangka panjang).*
+### C. Level of Service (LOS) & Status
+Kepadatan ditentukan dari rasio Volume per Kapasitas (V/C Ratio):
+- **LANCAR (LOS A - C)**: V/C Ratio $\le 0.75$
+- **PADAT (LOS D - E)**: V/C Ratio $0.76 - 1.00$
+- **MACET (LOS F)**: V/C Ratio $> 1.00$
 
-### E. Kepadatan dan Level of Service (LOS)
-**Rumus:**
-```math
-Kepadatan (\%) = \frac{Volume Aktual}{KVR} \times 100
-```
-**Skala LOS:**
-- A: $\le 25\%$ (Sangat Lancar)
-- B: $26\% - 50\%$ (Lancar)
-- C: $51\% - 60\%$ (Sedang)
-- D: $61\% - 75\%$ (Padat)
-- E: $76\% - 90\%$ (Sangat Padat / Merayap)
-- F: $> 90\%$ (Macet Total)
-
-### F. Sistem Pakar (Hybrid Rules)
-Status akhir ditentukan oleh kepadatan. Namun, ada aturan khusus (Override):
-**IF** (Kecepatan Rata-rata < Ambang Batas [mis. 15 km/h]) **THEN** Status = MACET.
-*(Kondisi ini berguna karena kemacetan gunung biasanya disebabkan oleh 1 truk patah as / mogok yang langsung membuat kecepatan menjadi 0, meskipun kepadatan volumetriknya secara total masih rendah).*
+> **Sistem Pakar (Override):** Jika mendeteksi kecepatan rata-rata kendaraan turun drastis (mis. $< 15$ km/jam akibat truk mogok/patah as), status langsung di-override menjadi **MACET**, meskipun V/C Ratio volumetrik masih rendah.
 
 ---
 
-## 3. Evaluasi Sistem (Kelebihan & Kekurangan)
+## 🛠️ 3. Kebutuhan Perangkat (Prerequisites)
 
-Sistem ini sangat transparan. Berikut adalah analisis pro dan kontra untuk pertimbangan perbaikan *AI Engineer* berikutnya:
-
-### Kelebihan (Pros)
-1. **Industri-Standar & Clean Code:** Kode berbasis OOP dan functional, di-tipe dengan kuat (*Type Hinting*), penanganan error (`try-except`) yang aman, dan koneksi PostgreSQL yang *auto-reconnect*.
-2. **Highly Scalable (Event-Driven):** MQTT memungkinkan penambahan Gerbang C, D, atau E tanpa harus membongkar kode server pusat.
-3. **Efisiensi Bandwidth:** *Edge* tidak mengirim *streaming* video HD ke server pusat, melainkan hanya mengirim _string JSON_ ringan setiap 20 detik. Ini sangat cocok untuk kondisi sinyal gunung yang lemah.
-4. **Performa Real-time:** Dashboard menggunakan WebSocket dan FastAPI, data muncul instan.
-
-### Kekurangan & Tantangan (Cons) - *Area for Improvement*
-1. **Akurasi Kecepatan Lemah (Perspective Distortion):** Saat ini kecepatan dihitung menggunakan pendekatan 2D piksel per meter sederhana (`pixel_dist / pixel_per_meter`). Hal ini menyebabkan *error* besar karena kamera memiliki efek perspektif (kendaraan di kejauhan tampak bergerak lebih lambat di piksel).
-   > *Saran Perbaikan:* Implementasikan *Perspective Transform (Bird's Eye View)* menggunakan Matriks Homografi dengan kalibrasi 4 titik di aspal.
-2. **Risiko Drift Occupancy:** Jika detektor gagal mengenali 1 mobil yang keluar, angka *Occupancy* di dalam ruas akan tersangkut (bertambah 1 hantu) selamanya sampai di-reset di tengah malam.
-   > *Saran Perbaikan:* Gunakan sistem pembacaan Plat Nomor (ALPR) probabilistik, atau gunakan kalibrasi ulang berkala menggunakan analisis spasial jika kepadatan sudah terlalu jauh melenceng.
-3. **Model YOLO Bawaan COCO:** Model YOLO yang digunakan saat ini belum dilatih ulang (*fine-tuned*) untuk klasifikasi khas Indonesia (seperti Odong-odong, Truk Tronton ODOL, Angkot).
-   > *Saran Perbaikan:* Kumpulkan ribuan gambar dari Sitinjau Lauik, lalu *fine-tune* model menggunakan `scripts/fine_tune.py`.
+- **Hardware:**
+  - Raspberry Pi 4/5 (RAM 8GB atau 16GB direkomendasikan).
+  - 2x Kamera CCTV / IP Camera pendukung protokol RTSP.
+  - Active Cooler / Heatsink untuk menjaga suhu Pi di bawah 80°C.
+- **Software:**
+  - Docker & Docker Compose (Paling Direkomendasikan).
+  - Python 3.11+
+  - PostgreSQL 14+
+  - Eclipse Mosquitto (MQTT Broker)
 
 ---
 
-## 4. Struktur Database (PostgreSQL)
-Sistem menggunakan skema yang dinormalisasi:
-- `gerbang_kamera`: Menyimpan daftar kamera fisik beserta IP dan Status operasional.
-- `hitungan_kendaraan`: *Time-series data* mentah jumlah kendaraan masuk/keluar per kelas per interval waktu.
-- `status_ruas`: Tabel log hasil evaluasi Sistem Pakar (Kepadatan, Volume, LOS, Status) per titik waktu.
+## 🚀 4. Cara Menjalankan Sistem (Quick Start)
+
+Metode termudah untuk menjalankan proyek ini pada tahap *production* adalah menggunakan Docker.
+
+### 1. Kloning Repository & Persiapan Lingkungan
+```bash
+git clone https://github.com/MAHEZANOVRAYUDA/Computer-Vision-Sitinjau-Lauik.git
+cd Computer-Vision-Sitinjau-Lauik
+
+# Konfigurasi file .env (ubah kredensial database sesuai kebutuhan)
+cp .env.example .env
+```
+
+### 2. Jalankan Seluruh Infrastruktur dengan Docker
+Sistem sudah dilengkapi dengan multi-stage Dockerfile yang ringan.
+```bash
+# Menjalankan Database, MQTT Broker, Edge Nodes, Consumer, dan API
+docker compose up -d
+```
+*Perintah ini otomatis akan menjalankan:*
+- `sitinjau_mqtt` (Mosquitto Broker)
+- `sitinjau_edge_a` (AI Node Gerbang Padang Besi)
+- `sitinjau_edge_b` (AI Node Gerbang Solok)
+- `sitinjau_consumer` (Core Processing & MKJI calculation)
+- `sitinjau_api` (Backend & Dashboard Server)
+
+### 3. Akses Dashboard
+Buka browser dan akses:
+- **Dashboard Live:** `http://localhost:8000/dashboard`
+- **Cek Status Health:** `docker compose ps`
 
 ---
-*Dokumentasi ini disiapkan untuk transisi secara mulus kepada tim pengembang lanjutan atau Analis AI berikutnya. Happy Coding!*
+
+## 🔧 5. Menjalankan Tanpa Docker (Manual)
+
+Bagi yang ingin men-debug atau *tuning* parameter secara langsung di IDE:
+
+1. Buat Virtual Environment & Install dependencies:
+   ```bash
+   python -m venv venv
+   source venv/bin/activate  # Di Windows: venv\Scripts\activate
+   pip install -r requirements.txt
+   ```
+2. Pastikan **PostgreSQL** dan **Mosquitto** berjalan di perangkat lokal Anda.
+3. Jalankan Consumer (Server Pusat):
+   ```bash
+   python src/mqtt_consumer.py
+   ```
+4. Jalankan Edge AI Node (Buka terminal baru):
+   ```bash
+   python src/main.py --config config/config_gerbang_a.yaml
+   ```
+5. Buka terminal baru dan Jalankan API Dashboard:
+   ```bash
+   python src/api_server.py
+   ```
+
+---
+
+## 📂 6. Struktur Direktori Utama
+
+```text
+📦 Computer-Vision-Sitinjau-Lauik
+ ┣ 📂 config/            # File YAML untuk konfigurasi sensitivitas deteksi, dll
+ ┣ 📂 dashboard/         # Antarmuka web HTML/JS & WebSocket
+ ┣ 📂 models/            # Tempat menyimpan file .pt (YOLO weights)
+ ┣ 📂 scripts/           # Script database (setup_database.sql)
+ ┣ 📂 src/
+ ┃ ┣ 📜 api_server.py    # FastAPI & WebSocket server
+ ┃ ┣ 📜 database.py      # PostgreSQL Connection Pooling
+ ┃ ┣ 📜 detector.py      # Integrasi Ultralytics YOLO & ByteTrack
+ ┃ ┣ 📜 event_publisher.py # Modul MQTT Edge + Auto Recovery Buffer
+ ┃ ┣ 📜 main.py          # Entry point Edge (Raspberry Pi)
+ ┃ ┣ 📜 mkji.py          # Algoritma perhitungan LOS standar MKJI 1997
+ ┃ ┣ 📜 model_optimizer.py # Eksportir model ke ONNX/NCNN untuk PI
+ ┃ ┣ 📜 mqtt_consumer.py # Server pengolah metrik dari seluruh gerbang
+ ┃ ┣ 📜 sistem_pakar.py  # Hybrid Rule-Based Evaluation
+ ┃ ┣ 📜 video_source.py  # Asynchronous multi-threading Video Capture
+ ┃ ┗ 📜 watchdog.py      # Pemonitor suhu & RAM khusus Raspberry Pi
+ ┣ 📜 docker-compose.yml # Orkestrasi Production
+ ┣ 📜 Dockerfile         # Image Builder Edge/Core
+ ┗ 📜 README.md          # Dokumentasi ini
+```
+
+---
+
+## 💡 7. Tips Optimasi di Raspberry Pi (Hardware Deployment)
+
+Sistem ini sangat intensif untuk CPU ARM yang kecil. Pastikan Anda melakukan:
+1. **Konversi Model ke NCNN:** Format `.pt` cukup berat untuk ARM. Gunakan `model_optimizer.py` untuk mengonversi ke NCNN/ONNX guna mempercepat Inference Rate FPS.
+   ```bash
+   python src/model_optimizer.py --format ncnn
+   ```
+2. **Atur Ukuran Frame:** Pada file `config.yaml`, pastikan resolusi diatur ke `416` (bukan `640`) untuk `imgsz`. Ini krusial agar Pi tidak overheat.
+3. **Pendinginan Fisik:** Wajib menggunakan modul *Active Cooling* (Kipas) di Pi. Modul `src/watchdog.py` akan me-restart sistem jika suhu menembus 80°C untuk mencegah kerusakan hardware.
+
+---
+*Dikembangkan untuk memecahkan tantangan lalu lintas ekstrem Sitinjau Lauik dengan teknologi AI terdepan.*

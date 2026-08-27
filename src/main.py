@@ -101,10 +101,13 @@ def jalankan():
     detektor = DetektorKendaraan(config, kamera_config, publisher=publisher)
     sumber_video = SumberVideo(config, kamera_config)
 
-    tampilkan_window = config.get("tampilan.tampilkan_window", True)
+    tampilkan_window = config.get("tampilan.tampilkan_window", False)
     simpan_output = config.get("tampilan.simpan_video_output", False)
-    interval_agregasi = config.get("agregasi.interval_detik", 60)
+    interval_agregasi = config.get("agregasi.interval_detik", 30)
     stream_port = kamera_config.get("stream_port")
+    # Frame skip: proses YOLO hanya setiap N frame (hemat CPU)
+    # Capture FPS biasanya 24-30, dengan skip=4 efektif 6-8 FPS inference
+    frame_skip = config.get("tampilan.frame_skip", 4)
 
     if stream_port:
         start_stream_server(stream_port)
@@ -155,14 +158,20 @@ def jalankan():
                 detektor.reset_tracker()
                 sumber_video.baru_saja_di_loop = False
 
-            # --- Proses frame: deteksi + tracking + counting ---
             frame_count += 1
+
+            # --- Frame skip dinonaktifkan sementara untuk akurasi tracking dan visualisasi ---
+            # if frame_count % frame_skip != 0:
+            #     update_frame(frame)
+            #     continue
+
+            # --- Proses frame: deteksi + tracking + counting ---
             frame_hasil = detektor.proses_frame(frame)
 
-            # Update MJPEG stream
+            # Update MJPEG stream dengan frame yang sudah ada overlay
             update_frame(frame_hasil)
 
-            # Tampilkan window (jika diaktifkan)
+            # Tampilkan window (jika diaktifkan — nonaktif di Docker)
             if tampilkan_window:
                 cv2.imshow(
                     f"Sitinjau Lauik — {gerbang_id_tampil}", frame_hasil
@@ -183,7 +192,8 @@ def jalankan():
                 capture_fps = sumber_video.capture_fps
                 logger.info(
                     f"[FPS] Processing: {processing_fps:.1f} | "
-                    f"Capture: {capture_fps:.1f}"
+                    f"Capture: {capture_fps:.1f} | "
+                    f"Frame skip: 1/{frame_skip}"
                 )
                 fps_counter = 0
                 fps_timer = time.time()

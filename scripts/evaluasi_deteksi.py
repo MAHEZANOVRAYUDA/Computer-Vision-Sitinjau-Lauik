@@ -21,13 +21,13 @@ Cara pakai:
 
     # Evaluasi model baseline COCO:
     python scripts/evaluasi_deteksi.py \\
-        --model models/yolov8s.pt \\
+        --model models/yolov8n.pt \\
         --data data/fine_tuning/data.yaml \\
         --split val
 
     # Simpan output ke file:
     python scripts/evaluasi_deteksi.py \\
-        --model models/yolov8s.pt \\
+        --model models/yolov8n.pt \\
         --data data/fine_tuning/data.yaml \\
         > data/logs/eval_deteksi_sebelum.txt
 
@@ -60,7 +60,7 @@ def main():
         "--model",
         type=str,
         required=True,
-        help="Path ke file model .pt (contoh: models/yolov8s.pt atau models/sitinjau_lauik_v1/weights/best.pt)"
+        help="Path ke file model .pt (contoh: models/yolov8n.pt atau models/sitinjau_lauik_v1/weights/best.pt)"
     )
     parser.add_argument(
         "--data",

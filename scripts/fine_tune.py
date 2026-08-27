@@ -16,7 +16,7 @@ Persiapan sebelum fine-tuning:
 Cara menjalankan:
   python scripts/fine_tune.py
   python scripts/fine_tune.py --model yolov8n.pt --epochs 50   # quick test
-  python scripts/fine_tune.py --model yolov8s.pt --epochs 100  # full training
+  python scripts/fine_tune.py --model yolov8n.pt --epochs 100  # full training
 
 Referensi:
   docs/VALIDASI_AKURASI.md bagian 6 — Panduan Fine-Tuning YOLOv8
@@ -101,8 +101,8 @@ def main():
     parser.add_argument(
         "--model",
         type=str,
-        default="models/yolov8s.pt",
-        help="Path ke model pretrained sebagai starting point (default: models/yolov8s.pt)",
+        default="models/yolov8n.pt",
+        help="Path ke model pretrained sebagai starting point (default: models/yolov8n.pt)",
     )
     parser.add_argument(
         "--epochs", type=int, default=100,
@@ -189,7 +189,7 @@ def main():
     model_path = Path(args.model)
     if not model_path.exists():
         print(f"[ERROR] File model tidak ditemukan: {model_path}")
-        print(f"Download YOLOv8: python -c \"from ultralytics import YOLO; YOLO('yolov8s.pt')\"")
+        print(f"Download YOLOv8: python -c \"from ultralytics import YOLO; YOLO('yolov8n.pt')\"")
         sys.exit(1)
 
     # Mulai fine-tuning

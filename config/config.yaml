@@ -86,25 +86,22 @@ kamera:
 # 4. MODEL DETEKSI (YOLO)
 # ---------------------------------------------------------------------
 model:
-  # Path ke file model. Gunakan model nano (yolov8n.pt) untuk performa real-time di Raspberry Pi.
+  # Path ke file model. Gunakan model nano (yolov8n.pt) untuk performa real-time.
   weights_path: "models/yolov8n.pt"
 
-  # Resolusi inferensi YOLO (resize ke ukuran ini, lebih kecil = lebih cepat). Default YOLO adalah 640.
-  inference_size: 416
+  # Resolusi inferensi YOLO. 320 jauh lebih ringan dari 640 saat di CPU.
+  inference_size: 320
 
-  # Ambang kepercayaan minimal deteksi (0-1). Naikkan jika banyak false positive.
+  # Ambang kepercayaan minimal deteksi (0-1).
   confidence_threshold: 0.30
 
   # IoU threshold untuk Non-Max Suppression
   iou_threshold: 0.45
 
-  # Device inferensi: "cuda" jika ada NVIDIA GPU (kasus Anda), "cpu" jika tidak
-  device: "cuda"
+  # Device inferensi
+  device: "cpu"
+  half_precision: false
 
-  # Mapping kelas COCO (default YOLOv8) ke kategori kendaraan yang kita pakai.
-  # ID kelas COCO standar: 2=car, 3=motorcycle, 5=bus, 7=truck
-  # (Catatan: COCO tidak punya kelas "minibus" terpisah — sesuai keputusan dokumen final,
-  #  minibus dikelompokkan sebagai "mobil")
   coco_class_mapping:
     2: "mobil"
     3: "motor"
@@ -184,14 +181,11 @@ sistem_pakar:
 # 9. INTERVAL AGREGASI & MQTT
 # ---------------------------------------------------------------------
 agregasi:
-  # Untuk testing lokal dengan video file, 20 detik lebih praktis supaya
-  # Anda cepat melihat hasil di dashboard tanpa menunggu lama.
-  # Saat nanti migrasi ke kamera real 24/7, naikkan kembali ke 60 (1 menit)
-  # sesuai rekomendasi dokumen blueprint asli.
-  interval_detik: 20
+  # 30 detik untuk demo; naikkan ke 60 saat deploy live
+  interval_detik: 30
 
 mqtt:
-  broker_host: "host.docker.internal"
+  broker_host: "sitinjau_mqtt"     # Gunakan nama service Docker
   broker_port: 1883
   topic_prefix: "sitinjau_lauik"
   client_id: "gerbang_a_edge"

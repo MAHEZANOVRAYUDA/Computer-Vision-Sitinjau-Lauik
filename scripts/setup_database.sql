@@ -111,8 +111,7 @@ INSERT INTO gerbang_kamera (id_gerbang, id_ruas, nama_gerbang, arah_menghadap, s
 VALUES ('gerbang_a', 1, 'Gerbang A - Jl. Padang Basi', 'ke_padang', 'aktif')
 ON CONFLICT (id_gerbang) DO NOTHING;
 
--- Catatan: Gerbang B belum diseed karena baru 1 kamera yang tersedia
--- untuk prototipe ini. Tambahkan manual saat kamera kedua siap:
---
--- INSERT INTO gerbang_kamera (id_gerbang, id_ruas, nama_gerbang, arah_menghadap, status_perangkat)
--- VALUES ('gerbang_b', 1, 'Gerbang B - Jembatan Timbang Oto', 'ke_solok', 'aktif');
+-- Gerbang B: aktif untuk mode demo/prototipe 2 kamera
+INSERT INTO gerbang_kamera (id_gerbang, id_ruas, nama_gerbang, arah_menghadap, status_perangkat)
+VALUES ('gerbang_b', 1, 'Gerbang B - Jembatan Timbang Oto', 'ke_solok', 'aktif')
+ON CONFLICT (id_gerbang) DO NOTHING;

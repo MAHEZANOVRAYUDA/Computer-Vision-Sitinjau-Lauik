@@ -222,7 +222,9 @@ class Database:
         with self._dict_cursor() as cursor:
             cursor.execute(
                 """
-                SELECT timestamp_hitung, total_kendaraan_saat_ini, rasio_vc, status_label
+                SELECT timestamp_hitung, total_kendaraan_saat_ini, rasio_vc, status_label,
+                       rasio_vc_mkji, volume_smp_jam_mkji, kapasitas_smp_jam_mkji,
+                       level_of_service_mkji, status_label_mkji
                 FROM status_ruas
                 WHERE timestamp_hitung >= NOW() - make_interval(hours => %s)
                 ORDER BY timestamp_hitung ASC

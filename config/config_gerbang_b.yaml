@@ -15,19 +15,17 @@
 # 1. SUMBER VIDEO — Gerbang B
 # ---------------------------------------------------------------------
 video_source:
-  # Ganti ke "rtsp" saat kamera sudah terpasang
-  # Sementara pakai "file" untuk testing dengan video simulasi
+  # Mode: "file" untuk demo/testing, "rtsp" saat kamera fisik terpasang
   mode: "file"
 
   # Isi dengan URL RTSP kamera Gerbang B saat sudah ada
-  # Format: rtsp://username:password@ip_kamera:port/path
-  rtsp_url: "rtsp://GANTI_IP_KAMERA_B:8554/Streaming/Channels/102"
+  rtsp_url: "${GERBANG_B_RTSP_URL}"
 
   # File video simulasi untuk testing Gerbang B
   file_path: "data/videos/test3.mp4"
 
-  process_width: 960
-  process_height: 540
+  process_width: 640
+  process_height: 360
 
 # ---------------------------------------------------------------------
 # 2. IDENTITAS GERBANG B
@@ -52,35 +50,25 @@ kamera:
     counting_lines: []
   - id: "gerbang_b"
     gerbang: "B"
-    aktif: true        # Gerbang B AKTIF di file ini
+    aktif: true
+    source_type: "file"           # "file" untuk demo, "rtsp" saat kamera fisik
+    source: "data/videos/test3.mp4"
     stream_port: 9002
-    rtsp_url: "rtsp://GANTI_IP_KAMERA_B:8554/Streaming/Channels/102"
+    rtsp_url: "${GERBANG_B_RTSP_URL}"
     counting_lines:
       - id: "lajur_kiri"
         arah: "masuk"
         garis:
-          titik_1: [100, 400]
-          titik_2: [450, 400]
+          titik_1: [100, 270]
+          titik_2: [300, 270]
         toleransi_piksel: 8
-        # pixel_per_meter WAJIB dikalibrasi ulang untuk kamera ini secara
-        # spesifik menggunakan scripts/kalibrasi_garis.py --kalibrasi-meter
-        # setelah kamera terpasang fisik di lokasi final.
-        # Nilai di bawah adalah PLACEHOLDER dan TIDAK VALID untuk klaim
-        # kecepatan/LOS hybrid sampai dikalibrasi.
-        # Tanggal kalibrasi terakhir: [ISI SETELAH KALIBRASI LAPANGAN]
         pixel_per_meter: 25.0
       - id: "lajur_kanan"
         arah: "keluar"
         garis:
-          titik_1: [510, 400]
-          titik_2: [860, 400]
+          titik_1: [340, 270]
+          titik_2: [540, 270]
         toleransi_piksel: 8
-        # pixel_per_meter WAJIB dikalibrasi ulang untuk kamera ini secara
-        # spesifik menggunakan scripts/kalibrasi_garis.py --kalibrasi-meter
-        # setelah kamera terpasang fisik di lokasi final.
-        # Nilai di bawah adalah PLACEHOLDER dan TIDAK VALID untuk klaim
-        # kecepatan/LOS hybrid sampai dikalibrasi.
-        # Tanggal kalibrasi terakhir: [ISI SETELAH KALIBRASI LAPANGAN]
         pixel_per_meter: 25.0
 
 # ---------------------------------------------------------------------
@@ -95,10 +83,12 @@ kamera:
 # 4. MODEL DETEKSI (YOLO) — sama di semua node
 # ---------------------------------------------------------------------
 model:
-  weights_path: "models/yolov8s.pt"
-  confidence_threshold: 0.15
+  weights_path: "models/yolov8n.pt"   # Nano: optimal untuk CPU (bukan yolov8s)
+  inference_size: 320                  # 320 jauh lebih cepat dari default 416 di CPU
+  confidence_threshold: 0.30
   iou_threshold: 0.45
   device: "cpu"
+  half_precision: false               # Tidak ada manfaat di CPU
 
   coco_class_mapping:
     2: "mobil"
@@ -149,13 +139,13 @@ sistem_pakar:
 # 9. INTERVAL AGREGASI & MQTT — Gerbang B
 # ---------------------------------------------------------------------
 agregasi:
-  interval_detik: 20
+  interval_detik: 30
 
 mqtt:
-  broker_host: "host.docker.internal"
+  broker_host: "sitinjau_mqtt"     # Gunakan nama service Docker
   broker_port: 1883
   topic_prefix: "sitinjau_lauik"
-  client_id: "gerbang_b_edge"         # WAJIB BERBEDA dari Gerbang A
+  client_id: "gerbang_b_edge"      # WAJIB BERBEDA dari Gerbang A
 
 # ---------------------------------------------------------------------
 # 10. DATABASE

@@ -292,7 +292,7 @@ def health_check():
     Mengembalikan 200 OK jika server dan database bisa berkomunikasi.
     """
     try:
-        db._ensure_connected()
+        db._ensure_pool()
         return {"status": "ok", "database": "connected"}
     except Exception as e:
         return {"status": "degraded", "database": "disconnected", "error": str(e)}
@@ -334,10 +334,29 @@ async def websocket_live(websocket: WebSocket):
 # Static Files & Dashboard
 # -----------------------------------------------------------------------
 
+_DASHBOARD_DIR = Path(__file__).parent.parent / "dashboard"
+
+# Serve static assets (PNG, JS, CSS) langsung dari folder dashboard
+app.mount("/static", StaticFiles(directory=str(_DASHBOARD_DIR)), name="static")
+
 @app.get("/")
 def index():
-    dashboard_path = Path(__file__).parent.parent / "dashboard" / "index.html"
-    return FileResponse(dashboard_path)
+    """Root — langsung ke dashboard."""
+    return FileResponse(_DASHBOARD_DIR / "index.html")
+
+@app.get("/dashboard")
+def dashboard():
+    """Alias /dashboard → index.html (sesuai dokumentasi README)."""
+    return FileResponse(_DASHBOARD_DIR / "index.html")
+
+# Serve file statis secara langsung (mis. logo, gambar)
+@app.get("/{filename:path}")
+def serve_static(filename: str):
+    """Fallback: serve file apapun dari folder dashboard jika ada."""
+    file_path = _DASHBOARD_DIR / filename
+    if file_path.exists() and file_path.is_file():
+        return FileResponse(file_path)
+    return {"error": f"File '{filename}' tidak ditemukan"}
 
 
 if __name__ == "__main__":

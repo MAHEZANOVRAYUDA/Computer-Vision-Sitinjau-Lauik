@@ -162,10 +162,9 @@ class MqttConsumerApp:
                     elif "b" in gl:
                         if arah == "masuk": self.kumulatif_b_masuk[kelas] += jumlah
                         elif arah == "keluar": self.kumulatif_b_keluar[kelas] += jumlah
-            
             try:
                 occ = hitung_occupancy_ruas(self.kumulatif_a_masuk, self.kumulatif_b_keluar, self.kumulatif_b_masuk, self.kumulatif_a_keluar)
-                jumlah_eval = occ.total_per_kelas
+                jumlah_eval = occ.jumlah_per_kelas
             except Exception as e:
                 logger.error(f"[Occupancy] Error: {e}")
                 return
@@ -184,22 +183,29 @@ class MqttConsumerApp:
         # MKJI 1997
         hasil_mkji = None
         try:
-            interval_jam = self.interval_detik / 3600.0
-            if interval_jam > 0:
-                flow = defaultdict(int)
-                for k, v in counter.items():
-                    if len(k.split("_", 1)) == 2: flow[k.split("_", 1)[1]] += v
-                flow_jam = {k: v / interval_jam for k, v in flow.items()}
-                
-                hasil_mkji = evaluasi_mkji(
-                    flow_jam, 
-                    fc_w=float(self.config.get("mkji.fc_w", 0.90)),
-                    fc_sp=float(self.config.get("mkji.fc_sp", 1.00)),
-                    fc_sf=float(self.config.get("mkji.fc_sf", 1.00)),
-                    fc_cs=float(self.config.get("mkji.fc_cs", 1.00)),
-                    ambang_lancar=float(self.config.get("mkji.ambang_lancar_vc", 0.44)),
-                    ambang_padat=float(self.config.get("mkji.ambang_padat_vc", 0.84)),
-                )
+            # Menggunakan rolling average 15 menit dari database untuk menstabilkan perhitungan MKJI
+            riwayat_15_menit = self.db.ambil_hitungan_terbaru(menit_terakhir=15)
+            
+            flow_15m = defaultdict(int)
+            for row in riwayat_15_menit:
+                # Hanya hitung yang 'masuk' agar tidak double-counting (masuk dan keluar)
+                if row.get("arah") == "masuk":
+                    kelas = row.get("jenis_kendaraan")
+                    if kelas:
+                        flow_15m[kelas] += int(row.get("total") or 0)
+            
+            # Konversi dari 15 menit ke per jam (* 4)
+            flow_jam = {k: v * 4.0 for k, v in flow_15m.items()}
+            
+            hasil_mkji = evaluasi_mkji(
+                flow_jam, 
+                fc_w=float(self.config.get("mkji.fc_w", 0.90)),
+                fc_sp=float(self.config.get("mkji.fc_sp", 1.00)),
+                fc_sf=float(self.config.get("mkji.fc_sf", 1.00)),
+                fc_cs=float(self.config.get("mkji.fc_cs", 1.00)),
+                ambang_lancar=float(self.config.get("mkji.ambang_lancar_vc", 0.44)),
+                ambang_padat=float(self.config.get("mkji.ambang_padat_vc", 0.84)),
+            )
         except Exception as e:
             logger.error(f"[MKJI] Error: {e}")
             

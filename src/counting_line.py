@@ -148,52 +148,56 @@ class PelacakLintasGaris:
             sisi_sekarang = garis.sisi_titik(x_center, y_center)
 
             if key not in self._sisi_terakhir:
-                self._sisi_terakhir[key] = sisi_sekarang
+                if abs(sisi_sekarang) > AMBANG_HISTERESIS_SISI:
+                    self._sisi_terakhir[key] = sisi_sekarang
                 continue
 
             sisi_sebelumnya = self._sisi_terakhir[key]
 
-            # Tahap 7: histeresis untuk mencegah jitter piksel memicu event
-            # Syarat: kedua sisi harus melewati AMBANG_HISTERESIS_SISI
-            if (
-                sisi_sebelumnya * sisi_sekarang < 0
-                and abs(sisi_sekarang) > AMBANG_HISTERESIS_SISI
-                and abs(sisi_sebelumnya) > AMBANG_HISTERESIS_SISI
-                and garis.dalam_rentang_segmen(x_center, y_center)
-            ):
-                hist = self._track_history[track_id]
+            # Histeresis: Abaikan jika titik berada di dalam "zona abu-abu" sekitar garis
+            if abs(sisi_sekarang) <= AMBANG_HISTERESIS_SISI:
+                continue
 
-                # Tahap 7: validasi arah konsisten sebelum mencatat event
-                # Gunakan least-squares dari Tahap 3 untuk cek konsistensi arah
-                MINIMAL_TITIK_VALIDASI_ARAH = 5
-                if len(hist) >= MINIMAL_TITIK_VALIDASI_ARAH:
-                    laju = _estimasi_laju_least_squares(hist)
-                    arah_perpindahan_sisi = sisi_sekarang - sisi_sebelumnya
-                    if laju is not None and (laju * arah_perpindahan_sisi) < 0:
-                        # Arah tidak konsisten — kemungkinan noise/U-turn sesaat
-                        # Update sisi tapi JANGAN catat event, tunggu konfirmasi
-                        self._sisi_terakhir[key] = sisi_sekarang
-                        continue
+            # Jika tanda berubah, berarti melintasi garis
+            if sisi_sebelumnya * sisi_sekarang < 0:
+                if garis.dalam_rentang_segmen(x_center, y_center):
+                    hist = self._track_history[track_id]
 
-                # Hitung kecepatan dengan least-squares (Tahap 3)
-                speed_kmh = None
-                MINIMAL_TITIK_UNTUK_KECEPATAN = 5
-                if len(hist) >= MINIMAL_TITIK_UNTUK_KECEPATAN:
-                    laju_piksel_per_detik = _estimasi_laju_least_squares(hist)
-                    if laju_piksel_per_detik is not None and garis.pixel_per_meter > 0:
-                        speed_ms = abs(laju_piksel_per_detik) / garis.pixel_per_meter
-                        speed_kmh = speed_ms * 3.6
+                    # Tahap 7: validasi arah konsisten sebelum mencatat event
+                    MINIMAL_TITIK_VALIDASI_ARAH = 5
+                    if len(hist) >= MINIMAL_TITIK_VALIDASI_ARAH:
+                        laju = _estimasi_laju_least_squares(hist)
+                        arah_perpindahan_sisi = sisi_sekarang - sisi_sebelumnya
+                        if laju is not None and (laju * arah_perpindahan_sisi) < 0:
+                            import logging
+                            logging.getLogger(__name__).warning(f"SKIPPED DUE TO LAJU: id={track_id} laju={laju} arah={arah_perpindahan_sisi}")
+                            # Arah tidak konsisten, update state firm tapi jangan hitung
+                            self._sisi_terakhir[key] = sisi_sekarang
+                            continue
 
-                events.append(
-                    {
-                        "lajur_id": garis.lajur_id,
-                        "arah": garis.arah,
-                        "track_id": track_id,
-                        "kecepatan_kmh": speed_kmh
-                    }
-                )
-                self._sudah_dihitung[key] = True
+                    # Hitung kecepatan dengan least-squares
+                    speed_kmh = None
+                    MINIMAL_TITIK_UNTUK_KECEPATAN = 5
+                    if len(hist) >= MINIMAL_TITIK_UNTUK_KECEPATAN:
+                        laju_piksel_per_detik = _estimasi_laju_least_squares(hist)
+                        if laju_piksel_per_detik is not None and garis.pixel_per_meter > 0:
+                            speed_ms = abs(laju_piksel_per_detik) / garis.pixel_per_meter
+                            speed_kmh = speed_ms * 3.6
 
+                    import logging
+                    logging.getLogger(__name__).info(f"CROSSED LINE SUCCESS: id={track_id} line={garis.line_id} x={x_center} y={y_center}")
+
+                    events.append(
+                        {
+                            "lajur_id": garis.lajur_id,
+                            "arah": garis.arah,
+                            "track_id": track_id,
+                            "kecepatan_kmh": speed_kmh
+                        }
+                    )
+                    self._sudah_dihitung[key] = True
+
+            # Update state ke sisi yang baru dan firm
             self._sisi_terakhir[key] = sisi_sekarang
 
         return events

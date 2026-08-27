@@ -6,6 +6,10 @@
 ![IoT](https://img.shields.io/badge/Protocol-MQTT-yellow.svg)
 ![Database](https://img.shields.io/badge/Database-PostgreSQL-informational.svg)
 
+<div align="center">
+  <img src="docs/screencapture-localhost-8000-2026-08-27-11_29_08.png" alt="Dashboard Sitinjau Lauik" width="100%">
+</div>
+
 Sistem cerdas berbasis **Computer Vision (AI)** dan **Internet of Things (IoT)** untuk mendeteksi, menghitung, dan menganalisis tingkat kemacetan lalu lintas secara *real-time* di ruas jalan ekstrem **Sitinjau Lauik (Padang - Solok)**. 
 
 Proyek ini dirancang secara khusus untuk berjalan di *Edge Device* (seperti **Raspberry Pi 8GB/16GB**) terhubung ke **2 Kamera CCTV (Gerbang Padang Besi & Gerbang Jembatan Timbang Solok)**, menggunakan jaringan nirkabel/Wi-Fi dengan lalu lintas data yang sangat efisien.

@@ -39,6 +39,7 @@
 
   .glass-panel {
     background: var(--glass-bg);
+    color: var(--text-primary);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
     border: 1px solid var(--glass-border);
@@ -255,7 +256,6 @@
   .metric-card {
     position: relative;
     overflow: hidden;
-  }
     background: rgba(0,0,0,0.2);
     border: 1px solid var(--glass-border);
     border-radius: 12px;
@@ -982,7 +982,7 @@
               ${label} <span style="color:#94a3b8;font-weight:400;font-size:0.65rem;">${arahLabel}</span>
               <span id="${statusId}" style="color:var(--text-tertiary);">⌛ Reconnecting...</span>
             </div>
-            <img src="http://localhost:${port}/video_feed" style="width:100%;height:100%;object-fit:cover;display:block;"
+            <img src="http://${window.location.hostname}:${port}/video_feed" style="width:100%;height:100%;object-fit:cover;display:block;"
               onload="document.getElementById('${statusId}').innerHTML='● Live'; document.getElementById('${statusId}').style.color='var(--lancar)';"
               onerror="document.getElementById('${statusId}').innerHTML='○ Offline'; document.getElementById('${statusId}').style.color='var(--macet)'; this.onerror=null;this.src='${svgOffline}';">
           </div>`;

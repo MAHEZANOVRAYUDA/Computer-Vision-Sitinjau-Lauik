@@ -93,7 +93,7 @@ model:
   confidence_threshold: 0.30
   iou_threshold: 0.45
   device: "cpu"
-  half_precision: false               # Tidak ada manfaat di CPU
+  half_precision: false               # FP16 di CUDA
 
   coco_class_mapping:
     2: "mobil"

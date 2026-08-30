@@ -15,6 +15,7 @@ import json
 import sys
 import threading
 import time
+from datetime import datetime
 from collections import defaultdict
 from typing import Optional
 from pathlib import Path
@@ -229,18 +230,6 @@ class MqttConsumerApp:
                 self.ambang_kecepatan_naik,
                 self.ambang_kecepatan_turun,
             )
-            try:
-                occ = hitung_occupancy_ruas(self.kumulatif_a_masuk, self.kumulatif_b_keluar, self.kumulatif_b_masuk, self.kumulatif_a_keluar)
-                jumlah_eval = occ.jumlah_per_kelas
-            except Exception as e:
-                logger.error(f"[Occupancy] Error: {e}")
-                return
-
-        total_occ = sum(jumlah_eval.values())
-        kecepatan = payload.get("kecepatan_rata2_kmh")
-        
-        try:
-            hasil = evaluasi(jumlah_eval, self.kapasitas, self.panjang_kendaraan, self.ambang_lancar, self.ambang_padat, None, None, kecepatan, self.ambang_kecepatan)
         except Exception as e:
             logger.error(f"[Pakar] Error: {e}")
             return

@@ -33,6 +33,7 @@ kamera:
     counting_lines:
       - id: "lajur_kiri"
         arah: "masuk"              # menuju Solok
+        arah_topografi: "naik"     # Padang menuju Solok (menanjak)
         deskripsi: "Kendaraan dari Padang menuju Sitinjau Lauik"
         garis:
           titik_1: [0, 400]
@@ -40,6 +41,7 @@ kamera:
         toleransi_piksel: 10
       - id: "lajur_kanan"
         arah: "keluar"             # dari arah Solok menuju Padang
+        arah_topografi: "turun"    # Solok menuju Padang (menurun)
         deskripsi: "Kendaraan dari Solok menuju Padang (keluar ruas di titik A)"
         garis:
           titik_1: [510, 400]
@@ -56,6 +58,7 @@ kamera:
     counting_lines:
       - id: "lajur_kiri"
         arah: "masuk"              # menuju Padang (dari arah Solok)
+        arah_topografi: "turun"    # Solok menuju Padang (menurun)
         deskripsi: "Kendaraan dari Solok menuju Sitinjau Lauik"
         garis:
           titik_1: [0, 400]
@@ -63,6 +66,7 @@ kamera:
         toleransi_piksel: 10
       - id: "lajur_kanan"
         arah: "keluar"             # dari arah Padang menuju Solok
+        arah_topografi: "naik"     # Padang menuju Solok (menanjak)
         deskripsi: "Kendaraan dari Padang menuju Solok (keluar ruas di titik B)"
         garis:
           titik_1: [510, 400]
@@ -99,7 +103,7 @@ model:
   iou_threshold: 0.45
 
   # Device inferensi
-  device: "cpu"
+  device: "cuda"
   half_precision: false
 
   coco_class_mapping:
@@ -172,6 +176,8 @@ sistem_pakar:
   # bersifat event-driven, bukan volume-based).
   # Catatan: fitur ini baru aktif jika ada data kecepatan dari kamera.
   ambang_kecepatan_lambat_kmh: 0.0
+  ambang_kecepatan_naik_kmh: 10.0   # Toleransi tanjakan lebih lambat
+  ambang_kecepatan_turun_kmh: 15.0  # Toleransi turunan lebih cepat
 
   # Durasi window estimasi occupancy untuk mode flow_x_traveltime (menit).
   # Harus konsisten dengan interval_detik di section agregasi di bawah.

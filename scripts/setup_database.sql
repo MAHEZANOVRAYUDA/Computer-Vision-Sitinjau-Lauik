@@ -56,12 +56,16 @@ CREATE TABLE IF NOT EXISTS hitungan_kendaraan (
     arah            VARCHAR(10) NOT NULL,        -- "masuk" / "keluar"
     jenis_kendaraan VARCHAR(20) NOT NULL,        -- "motor" / "mobil" / "bus" / "truk"
     jumlah_terhitung INTEGER NOT NULL DEFAULT 0,
+    arah_topografi  VARCHAR(10),                 -- "naik" / "turun"
     dibuat_pada     TIMESTAMP DEFAULT NOW()
 );
 
 -- Index untuk mempercepat query berdasarkan waktu dan gerbang (dipakai terus oleh dashboard)
 CREATE INDEX IF NOT EXISTS idx_hitungan_timestamp ON hitungan_kendaraan(timestamp_interval);
 CREATE INDEX IF NOT EXISTS idx_hitungan_gerbang ON hitungan_kendaraan(id_gerbang);
+
+ALTER TABLE hitungan_kendaraan
+  ADD COLUMN IF NOT EXISTS arah_topografi VARCHAR(10);
 
 -- ---------------------------------------------------------------------
 -- Tabel 4: status_ruas (hasil klasifikasi sistem pakar)

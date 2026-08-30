@@ -27,6 +27,7 @@ Perbaikan v3 (Blueprint Perbaikan):
 """
 
 import asyncio
+import os
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -38,7 +39,7 @@ _ROOT = Path(__file__).resolve().parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Header, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -123,10 +124,45 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Sitinjau Lauik Traffic API", lifespan=lifespan)
 
+
+def _cors_origins() -> list:
+    raw = os.environ.get("CORS_ORIGINS") or config.get("api.cors_origins")
+    if isinstance(raw, list):
+        origins = [str(x).strip() for x in raw if str(x).strip() and not str(x).startswith("${")]
+    elif isinstance(raw, str) and raw.strip() and not raw.startswith("${"):
+        origins = [x.strip() for x in raw.split(",") if x.strip()]
+    else:
+        origins = []
+    if not origins:
+        origins = [
+            "http://localhost:8000",
+            "http://127.0.0.1:8000",
+        ]
+    return origins
+
+
+def _expected_api_key() -> str:
+    key = os.environ.get("API_KEY") or config.get("api.api_key") or ""
+    if isinstance(key, str) and key.startswith("${"):
+        return ""
+    return str(key).strip()
+
+
+def _require_api_key(x_api_key: str = Header(default="", alias="X-API-Key")):
+    expected = _expected_api_key()
+    if not expected:
+        raise HTTPException(
+            status_code=503,
+            detail="API_KEY belum di-set. Isi .env untuk endpoint ekspor.",
+        )
+    if x_api_key != expected:
+        raise HTTPException(status_code=401, detail="API key tidak valid")
+
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # untuk prototipe/demo - persempit di produksi
-    allow_methods=["*"],
+    allow_origins=_cors_origins(),
+    allow_methods=["GET", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -296,6 +332,14 @@ def health_check():
         return {"status": "ok", "database": "connected"}
     except Exception as e:
         return {"status": "degraded", "database": "disconnected", "error": str(e)}
+
+
+@app.get("/api/export/riwayat")
+def export_riwayat(jam: int = 24, x_api_key: str = Header(default="", alias="X-API-Key")):
+    """Endpoint sensitif: ekspor riwayat. Wajib header X-API-Key jika API_KEY di-set."""
+    _require_api_key(x_api_key)
+    data = db.ambil_riwayat_status(jam_terakhir=jam)
+    return {"jumlah_data": len(data), "data": [dict(d) for d in data]}
 
 
 # -----------------------------------------------------------------------

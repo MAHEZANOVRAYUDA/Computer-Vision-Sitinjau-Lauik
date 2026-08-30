@@ -21,8 +21,9 @@ Volume dikonversi ke satuan mobil penumpang (smp) memakai EMP
 (Ekuivalen Mobil Penumpang) per kelas kendaraan, khusus medan gunung.
 
 Referensi: MKJI 1997, Direktorat Jenderal Bina Marga, Tabel 5-2 dan
-5-5. Lihat docs/PARAMETER_MKJI.md untuk detail tabel referensi dan
+5-5. Lihat docs/METODOLOGI_PERHITUNGAN.md untuk detail tabel referensi dan
 catatan validasi lapangan yang WAJIB dilakukan sebelum klaim akademis.
+Modul ini adalah METRIK PEMBANDING, bukan status operasional utama.
 """
 
 from dataclasses import dataclass
@@ -35,7 +36,7 @@ from typing import Dict, Optional
 # PENTING: nilai bus/truk di sini adalah TITIK TENGAH rentang MKJI untuk
 # medan gunung (3.0-3.5 untuk bus, 4.0-6.0 untuk truk besar). WAJIB
 # divalidasi/disesuaikan dengan survei lapangan aktual — lihat
-# docs/PARAMETER_MKJI.md bagian 2 untuk rentang lengkap dan prosedur
+# docs/METODOLOGI_PERHITUNGAN.md Bagian B untuk rentang lengkap dan prosedur
 # validasi. Jangan mengklaim nilai ini final tanpa survei.
 EMP_GUNUNG: Dict[str, float] = {
     "motor": 0.4,
@@ -90,7 +91,7 @@ def hitung_kapasitas_mkji(
 
     Menggunakan C0 = 2900 smp/jam untuk jalan 2/2 UD (Tabel 5-2 MKJI).
     Nilai default fc_w=0.90 mengasumsikan lebar jalur efektif
-    3.0-3.5m (lihat docs/PARAMETER_MKJI.md). fc_sp=1.00 untuk jalan
+    3.0-3.5m (lihat docs/METODOLOGI_PERHITUNGAN.md). fc_sp=1.00 untuk jalan
     tak terbagi tanpa pemisah median. Sesuaikan berdasar kondisi
     aktual ruas dan hasil survei.
     """

@@ -1,10 +1,11 @@
 """
 sistem_pakar.py
 ================
-Implementasi sistem pakar rule-based (IF-THEN) sesuai Blueprint 5
-di dokumen final. Modul ini SENGAJA dipisah dari kode server/database
-supaya bisa diuji secara independen (lihat tests/test_sistem_pakar.py)
-dan gampang dikalibrasi ulang setelah ada data survei MKJI riil.
+Implementasi sistem pakar rule-based (IF-THEN) untuk klasifikasi
+kemacetan berbasis occupancy/density (bukan V/C MKJI).
+Modul ini SENGAJA dipisah dari kode server/database supaya bisa
+diuji secara independen (lihat tests/test_sistem_pakar.py)
+dan dikalibrasi ulang setelah ada data observasi lapangan.
 
 Changelog v2 (Blueprint Perbaikan):
 - Tambah hitung_kapasitas_volumetrik_ruas(): menghitung KVR dari parameter
@@ -102,8 +103,11 @@ def hitung_volume_meter_lajur(jumlah_per_kelas: Dict[str, int], panjang_kendaraa
 
 def tentukan_level_of_service(persentase_kepadatan: float) -> str:
     """
-    Menentukan Level of Service (LOS) A-F berdasarkan persentase kepadatan.
-    Nilai diselaraskan dengan standar resmi MKJI 1997.
+    Label LOS A-F berdasarkan persentase kepadatan occupancy.
+
+    Ambang 20/44/75/84/100 meniru breakpoint LOS yang dikenal di MKJI,
+    tetapi diterapkan pada occupancy ratio — BUKAN V/C ratio arus per jam.
+    Jangan diklaim sebagai "sesuai MKJI 1997".
     """
     if persentase_kepadatan <= 20.0:
         return "A"
@@ -139,6 +143,10 @@ def klasifikasi_status_hybrid(
     ambang_lancar: float = 44.0,
     ambang_padat: float = 84.0,
     ambang_kecepatan_lambat_kmh: float = 15.0,
+    kecepatan_naik_kmh: Optional[float] = None,
+    kecepatan_turun_kmh: Optional[float] = None,
+    ambang_kecepatan_naik_kmh: Optional[float] = None,
+    ambang_kecepatan_turun_kmh: Optional[float] = None,
 ) -> str:
     """
     Versi hybrid dari klasifikasi_status() yang mempertimbangkan kecepatan
@@ -164,10 +172,20 @@ def klasifikasi_status_hybrid(
         kecepatan_rata2_kmh: kecepatan rata-rata terukur dari kamera (opsional)
         ambang_lancar: threshold % untuk status lancar (default 50%)
         ambang_padat: threshold % untuk status padat (default 75%)
-        ambang_kecepatan_lambat_kmh: kecepatan di bawah ini = override ke macet
-                                     (default 15 km/jam — setara antrean berat)
+        ambang_kecepatan_lambat_kmh: kecepatan agregat di bawah ini = override ke macet
+                                     (default 15 km/jam — asumsi awal, validasi lapangan)
+        kecepatan_naik_kmh / kecepatan_turun_kmh: rata-rata per arah topografi (opsional)
+        ambang_kecepatan_naik_kmh / ambang_kecepatan_turun_kmh: ambang terpisah tanjakan vs turunan
     """
     status_volume = klasifikasi_status(persentase_kepadatan, ambang_lancar, ambang_padat)
+
+    ambang_naik = ambang_kecepatan_naik_kmh if ambang_kecepatan_naik_kmh is not None else ambang_kecepatan_lambat_kmh
+    ambang_turun = ambang_kecepatan_turun_kmh if ambang_kecepatan_turun_kmh is not None else ambang_kecepatan_lambat_kmh
+
+    if kecepatan_naik_kmh is not None and kecepatan_naik_kmh > 0 and kecepatan_naik_kmh < ambang_naik:
+        return "macet"
+    if kecepatan_turun_kmh is not None and kecepatan_turun_kmh > 0 and kecepatan_turun_kmh < ambang_turun:
+        return "macet"
 
     if kecepatan_rata2_kmh is None or kecepatan_rata2_kmh <= 0.0:
         return status_volume  # fallback: belum ada data kecepatan valid
@@ -208,6 +226,10 @@ def evaluasi(
     laju_keluar: float = None,
     kecepatan_rata2_kmh: Optional[float] = None,
     ambang_kecepatan_lambat_kmh: float = 15.0,
+    kecepatan_naik_kmh: Optional[float] = None,
+    kecepatan_turun_kmh: Optional[float] = None,
+    ambang_kecepatan_naik_kmh: Optional[float] = None,
+    ambang_kecepatan_turun_kmh: Optional[float] = None,
 ) -> HasilKlasifikasi:
     """
     Fungsi utama yang dipanggil dari luar modul ini.
@@ -235,6 +257,10 @@ def evaluasi(
         ambang_lancar=ambang_lancar,
         ambang_padat=ambang_padat,
         ambang_kecepatan_lambat_kmh=ambang_kecepatan_lambat_kmh,
+        kecepatan_naik_kmh=kecepatan_naik_kmh,
+        kecepatan_turun_kmh=kecepatan_turun_kmh,
+        ambang_kecepatan_naik_kmh=ambang_kecepatan_naik_kmh,
+        ambang_kecepatan_turun_kmh=ambang_kecepatan_turun_kmh,
     )
 
     rekomendasi = buat_rekomendasi(status, laju_masuk, laju_keluar)

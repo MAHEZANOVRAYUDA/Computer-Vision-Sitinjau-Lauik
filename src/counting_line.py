@@ -41,6 +41,7 @@ class GarisVirtual:
     titik_2: Tuple[float, float]
     toleransi_piksel: float = 8.0
     pixel_per_meter: float = 25.0
+    arah_topografi: Optional[str] = None  # "naik" atau "turun", terpisah dari arah masuk/keluar
 
     # Alias untuk backward compatibility dengan kode yang memakai 'line_id'
     @property
@@ -191,6 +192,7 @@ class PelacakLintasGaris:
                         {
                             "lajur_id": garis.lajur_id,
                             "arah": garis.arah,
+                            "arah_topografi": garis.arah_topografi,
                             "track_id": track_id,
                             "kecepatan_kmh": speed_kmh
                         }

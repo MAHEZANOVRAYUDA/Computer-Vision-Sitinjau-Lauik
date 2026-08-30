@@ -39,6 +39,9 @@ class DetektorKendaraan:
 
         self.device = config.get("model.device", "cpu")
         self.confidence = config.get("model.confidence_threshold", 0.30)
+        self.confidence_motor = float(
+            config.get("model.confidence_threshold_motor", self.confidence)
+        )
         self.iou = config.get("model.iou_threshold", 0.45)
         self.tracker_cfg = config.get("tracker.type", "bytetrack.yaml")
         self.inference_size = config.get("model.inference_size", 416)
@@ -61,6 +64,7 @@ class DetektorKendaraan:
         
         # Penampung kecepatan untuk dirata-rata per interval agregasi
         self.kecepatan_interval: List[float] = []
+        self.kecepatan_per_topografi: Dict[str, List[float]] = defaultdict(list)
 
         self.gerbang_id = self.kamera_config.get("id", "gerbang_a")
 
@@ -87,6 +91,7 @@ class DetektorKendaraan:
                     titik_2=tuple(titik_2),
                     toleransi_piksel=line.get("toleransi_piksel", 8),
                     pixel_per_meter=line.get("pixel_per_meter", 25.0),
+                    arah_topografi=line.get("arah_topografi"),
                 )
             )
         return garis_list
@@ -141,13 +146,21 @@ class DetektorKendaraan:
             boxes = hasil.boxes.xyxy.cpu().numpy()
             track_ids = hasil.boxes.id.cpu().numpy().astype(int)
             class_ids = hasil.boxes.cls.cpu().numpy().astype(int)
+            confs = (
+                hasil.boxes.conf.cpu().numpy()
+                if hasil.boxes.conf is not None
+                else [1.0] * len(boxes)
+            )
 
-            for box, tid, cid in zip(boxes, track_ids, class_ids):
+            for box, tid, cid, conf in zip(boxes, track_ids, class_ids, confs):
                 if cid not in self.coco_mapping:
                     continue
 
-                track_id_aktif.append(tid)
                 kelas = self.coco_mapping[cid]
+                if kelas == "motor" and float(conf) < self.confidence_motor:
+                    continue
+
+                track_id_aktif.append(tid)
 
                 x1, y1, x2, y2 = box
                 x_center = (x1 + x2) / 2
@@ -164,6 +177,9 @@ class DetektorKendaraan:
                     
                     if event.get("kecepatan_kmh") is not None:
                         self.kecepatan_interval.append(event["kecepatan_kmh"])
+                        topo = event.get("arah_topografi")
+                        if topo in ("naik", "turun"):
+                            self.kecepatan_per_topografi[topo].append(event["kecepatan_kmh"])
 
         self.pelacak_garis.bersihkan_track_hilang(track_id_aktif)
 
@@ -174,10 +190,18 @@ class DetektorKendaraan:
         )
         return frame_overlay
 
-    def reset_counter_interval(self) -> tuple[Dict[str, int], Optional[float]]:
+    def peta_arah_topografi(self) -> Dict[str, str]:
+        """Mapping arah masuk/keluar → naik/turun dari counting lines."""
+        hasil: Dict[str, str] = {}
+        for garis in self.daftar_garis:
+            if garis.arah_topografi:
+                hasil[garis.arah] = garis.arah_topografi
+        return hasil
+
+    def reset_counter_interval(self) -> tuple:
         """
         Dipanggil oleh scheduler agregasi setiap N detik (lihat main.py).
-        Mengembalikan tuple (snapshot counter interval, avg_speed), lalu mereset ke 0.
+        Return: (snapshot, avg_speed, kecepatan_per_topografi, arah_topografi_map)
         """
         snapshot = dict(self.counter_interval)
         self.counter_interval = defaultdict(int)
@@ -186,8 +210,14 @@ class DetektorKendaraan:
         if self.kecepatan_interval:
             avg_speed = sum(self.kecepatan_interval) / len(self.kecepatan_interval)
             self.kecepatan_interval.clear()
+
+        speed_topo: Dict[str, float] = {}
+        for topo, vals in self.kecepatan_per_topografi.items():
+            if vals:
+                speed_topo[topo] = sum(vals) / len(vals)
+        self.kecepatan_per_topografi.clear()
             
-        return snapshot, avg_speed
+        return snapshot, avg_speed, speed_topo, self.peta_arah_topografi()
 
     def reset_tracker(self):
         """

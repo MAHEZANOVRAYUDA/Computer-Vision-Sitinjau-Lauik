@@ -1,6 +1,6 @@
 # 🚦 Sitinjau Lauik AI Traffic Monitoring System
 
-![Status](https://img.shields.io/badge/Status-Production%20Ready-success)
+![Status](https://img.shields.io/badge/Status-Prototype%20%2F%20Validasi%20Lapangan-yellow)
 ![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)
 ![AI](https://img.shields.io/badge/AI-YOLOv8-orange.svg)
 ![IoT](https://img.shields.io/badge/Protocol-MQTT-yellow.svg)
@@ -31,57 +31,45 @@ Sistem dibagi menjadi 4 layer utama yang saling lepas (*decoupled*) agar tangguh
    - Dilengkapi sistem *Local Buffer* 5MB (data tidak hilang meski sinyal Wi-Fi putus sementara) dan *Last Will and Testament (LWT)* untuk mendeteksi status kamera (Aktif/Offline).
 3. **Core Server Layer (`src/mqtt_consumer.py`)** - *Berjalan di Server Pusat*
    - Berlangganan topik MQTT dan menerima data dari kedua gerbang secara asinkron.
-   - Menghitung **Occupancy** jaringan jalan (Selisih akumulasi kendaraan Masuk vs Keluar antar gerbang).
-   - Menjalankan komputasi tingkat layanan jalan (LOS) berdasar metodologi MKJI 1997 dan heuristik Sistem Pakar.
+   - Menghitung **Occupancy** ruas (selisih kumulatif masuk vs keluar antar gerbang).
+   - Menjalankan **occupancy-based congestion detection** sebagai status operasional utama, plus **MKJI 1997 sebagai metrik pembanding** (bukan pengganti).
    - Menyimpan seluruh raw counter, status agregasi, dan matriks ke **PostgreSQL**.
 4. **Presentation Layer (`src/api_server.py`)** - *Dashboard UI*
    - REST API (FastAPI) mem-push data terbaru menggunakan **WebSocket** ke antarmuka web HTML/JS.
-   - Dashboard memvisualisasikan tingkat kemacetan (*Gauge V/C Ratio*), matriks kendaraan 5 menit terakhir, serta menampilkan live stream dari tepi ruas (*edge*).
+   - Dashboard menampilkan status occupancy (LANCAR/PADAT/MACET) sebagai metrik utama, plus V/C MKJI sebagai info sekunder.
 
 ---
 
-## 📊 2. Logika Perhitungan & Metodologi 
+## 📊 2. Logika Perhitungan & Metodologi
 
-Sistem ini tidak sekadar menebak kemacetan melainkan menggunakan hibridisasi antara standar pedoman nasional dengan pendekatan rekayasa heuristik.
+Pendekatan Occupancy-Based Congestion Detection: status kemacetan dihitung dari rasio kepadatan kendaraan riil di ruas jalan (occupancy ratio) terhadap kapasitas volumetrik ruas (KVR), dikombinasikan dengan indikator kecepatan rata-rata (speed override) untuk menangkap kondisi bottleneck event-driven (mis. kendaraan mogok). Pendekatan ini termasuk kategori metodologi occupancy/density-based dalam teori aliran lalu lintas (traffic flow theory), **berbeda** dari pendekatan V/C ratio Manual Kapasitas Jalan Indonesia (MKJI) 1997 yang berbasis rasio arus (flow) per jam. MKJI 1997 dihitung secara paralel sebagai metrik pembanding (lihat [docs/METODOLOGI_PERHITUNGAN.md](docs/METODOLOGI_PERHITUNGAN.md)).
 
-### A. Standar MKJI 1997 (Metrik Primer)
-Menggunakan **Manual Kapasitas Jalan Indonesia (MKJI) 1997** untuk jalan tipe 2/2 UD (Dua Lajur Dua Arah Tak Terbagi):
+Sistem ini adalah **congestion monitor**, bukan prediktor kecelakaan.
 
-**Kapasitas Jalan ($C$)**
-Kapasitas Dasar ($C_0$) untuk jalan 2/2 UD secara teoritis adalah **2900 smp/jam** (satuan mobil penumpang).
-Kapasitas riil ditentukan dengan rumus koreksi:
-```text
-C = C0 × FCW × FCSP × FCSF × FCCS
+### A. Metrik utama — occupancy / KVR (sistem pakar)
 
-Dimana:
-C0   = 2900 smp/jam
-FCW  = Faktor lebar jalur (Default: 0.90)
-FCSP = Faktor pemisahan arah (Default: 1.00)
-FCSF = Faktor hambatan samping (Default: 1.00)
-FCCS = Faktor ukuran kota (Default: 1.00)
+```
+Occupancy = max(0, kumulatif masuk satu ujung − kumulatif keluar ujung lain)
+Volume_meter_lajur = Σ (jumlah[kelas] × panjang_fisik[kelas])
+KVR = (L × pct_sempit × 2) + (L × pct_lebar × 6)
+Persentase_kepadatan = Volume / KVR × 100%
 ```
 
-**Ekuivalensi Mobil Penumpang (EMP)**
-Karena kontur pegunungan (Sitinjau Lauik) ekstrem, bobot kendaraan berat memiliki dampak signifikan terhadap arus jalan:
-- Sepeda Motor (MC): **0.40 smp**
-- Kendaraan Ringan / Mobil (LV): **1.00 smp**
-- Bus Sedang/Besar: **3.25 smp**
-- Truk Sedang/Besar: **5.00 smp**
+Status: LANCAR / PADAT / MACET dari ambang `ambang_lancar` / `ambang_padat` di config. Jika kecepatan rata-rata < ambang (bisa dipisah naik/turun), status di-override ke MACET.
 
-Sistem menerapkan **Rolling Average 15 Menit** dari database untuk menstabilkan input volume dari edge (per 20 detik) ke bentuk volume historis per jam (dikali faktor 4).
+Kolom `rasio_vc` di database untuk status utama adalah occupancy ratio, **bukan** V/C MKJI.
 
-### B. Level of Service (LOS)
-Kepadatan absolut ditentukan dari rasio Volume lalu lintas terhadap Kapasitas ruas jalan (V/C Ratio):
-- **LOS A**: V/C $\le 0.20$ (Sangat Lancar)
-- **LOS B**: V/C $\le 0.44$ (Lancar)
-- **LOS C**: V/C $\le 0.75$ (Mulai Padat)
-- **LOS D**: V/C $\le 0.84$ (Padat Merayap)
-- **LOS E**: V/C $\le 1.00$ (Mendekati Macet)
-- **LOS F**: V/C $> 1.00$ (Macet Total)
+### B. Metrik pembanding — MKJI 1997 (indikatif)
 
-### C. Heuristik Sistem Pakar (Hybrid Override)
-Pendekatan MKJI memiliki kelemahan untuk kondisi jalan ekstrem: saat V/C Ratio rendah namun ada truk patah as/mogok melintang di tikungan, jalan tetap macet meski volume kecil. Untuk itu, sistem kami mengimplementasi status Hybrid:
-> Jika mendeteksi **kecepatan rata-rata kendaraan $\le 15$ km/jam** secara real-time dari tangkapan kamera (*optical flow*), maka status langsung diganti paksa menjadi **MACET TOTAL (LOS F)** terlepas dari angka perhitungan volume.
+```
+C = C0 × FCw × FCsp × FCsf × FCcs
+```
+
+C0 = 2900 smp/jam (jalan 2/2 UD). Volume 15 menit × 4 → smp/jam dengan EMP gunung. **Catatan:** gradien Sitinjau Lauik ~20–26% melebihi cakupan normal MKJI; gunakan dengan hati-hati.
+
+### C. Keterbatasan yang disengaja
+
+Jangan diklaim sebagai implementasi MKJI murni, sistem prediksi kecelakaan, atau perangkat safety-critical. Ambang 44%/84% dan 15 km/jam adalah titik awal sampai divalidasi observasi lapangan (`docs/HASIL_VALIDASI_LAPANGAN.md`).
 
 ---
 
@@ -101,7 +89,7 @@ Pendekatan MKJI memiliki kelemahan untuk kondisi jalan ekstrem: saat V/C Ratio r
 1. **Dual Gate Monitoring**: Menghitung selisih (Occupancy Net) antara kendaraan masuk dari Padang dan keluar di Solok, dan sebaliknya.
 2. **Rolling Average Calculation**: Mengolah *noise* interval MQTT (20 detik) menggunakan buffer riwayat 15 menit ke database, meminimalisir lag/angka 0 pada tampilan V/C Ratio.
 3. **Live Camera Feed**: Penayangan video *Multi-Stream* (*Motion JPEG*) dari Edge Device langsung ke Command Center Web dengan latensi minimal.
-4. **Interactive Dashboard**: UI/UX responsif menampilkan Gauge V/C Ratio, Breakdown tipe kendaraan (Mobil, Truk, Bus, Motor), tren historis berbasis grafik, dan notifikasi status sensor edge.
+4. **Interactive Dashboard**: status occupancy utama, V/C MKJI sekunder, breakdown kendaraan, tren historis, notifikasi sensor.
 5. **Connection & Hardware Watchdog**: Deteksi *stale data* jika MQTT terputus, dan pemantauan termal CPU/RAM untuk auto-reboot Raspberry Pi agar umur perangkat awet.
 6. **Auto Database Persistence**: Setiap kalkulasi dan rekaman metrik terekam secara persisten untuk keperluan audit kelak (e.g., Export to CSV, dll).
 
@@ -109,7 +97,7 @@ Pendekatan MKJI memiliki kelemahan untuk kondisi jalan ekstrem: saat V/C Ratio r
 
 ## 🚀 5. Cara Menjalankan Sistem (Quick Start)
 
-Metode termudah untuk menjalankan proyek ini pada tahap *production* adalah menggunakan Docker.
+Metode termudah untuk menjalankan proyek ini pada tahap prototipe/demo adalah menggunakan Docker.
 
 ### 1. Kloning Repository & Persiapan Lingkungan
 ```bash
@@ -131,7 +119,7 @@ docker compose up -d
 - `sitinjau_db` (PostgreSQL - *jika di-enable pada compose*)
 - `sitinjau_edge_a` (AI Node Gerbang Padang Besi)
 - `sitinjau_edge_b` (AI Node Gerbang Solok)
-- `sitinjau_consumer` (Core Processing & MKJI calculation)
+- `sitinjau_consumer` (occupancy + MKJI pembanding)
 - `sitinjau_api` (Backend & Dashboard Server)
 
 ### 3. Akses Dashboard
@@ -181,7 +169,7 @@ Bagi yang ingin men-debug atau *tuning* parameter secara langsung di IDE:
  ┃ ┣ 📜 detector.py      # Integrasi Ultralytics YOLO & ByteTrack
  ┃ ┣ 📜 event_publisher.py # Modul MQTT Edge + Auto Recovery Buffer
  ┃ ┣ 📜 main.py          # Entry point Edge (Raspberry Pi)
- ┃ ┣ 📜 mkji.py          # Algoritma perhitungan LOS standar MKJI 1997
+ ┃ ┣ 📜 mkji.py          # MKJI 1997 sebagai metrik pembanding (bukan status utama)
  ┃ ┣ 📜 model_optimizer.py # Eksportir model ke ONNX/NCNN untuk PI
  ┃ ┣ 📜 mqtt_consumer.py # Server pengolah metrik dari seluruh gerbang
  ┃ ┣ 📜 sistem_pakar.py  # Hybrid Rule-Based Evaluation

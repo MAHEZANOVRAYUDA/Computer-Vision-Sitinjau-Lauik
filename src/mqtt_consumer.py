@@ -16,7 +16,7 @@ import sys
 import threading
 import time
 from collections import defaultdict
-from datetime import datetime
+from typing import Optional
 from pathlib import Path
 
 # Tambah root proyek ke sys.path
@@ -34,6 +34,24 @@ from src.sistem_pakar import evaluasi
 from src.occupancy_estimator import hitung_occupancy_ruas
 
 logger = get_logger(__name__)
+
+
+def identifikasi_gerbang(gerbang_id) -> Optional[str]:
+    """
+    Pemetaan ID gerbang ke bucket occupancy A atau B.
+
+    Jangan memakai `"a" in gerbang_id`: string "gerbang_b" mengandung huruf a.
+    """
+    if not gerbang_id:
+        return None
+    gl = str(gerbang_id).strip().lower()
+    if gl in {"a", "gerbang_a"} or gl.endswith("/gerbang_a") or gl.endswith(":gerbang_a"):
+        return "a"
+    if gl.endswith("gerbang_a") and "gerbang_b" not in gl:
+        return "a"
+    if gl in {"b", "gerbang_b"} or gl.endswith("gerbang_b"):
+        return "b"
+    return None
 
 
 class MqttConsumerApp:
@@ -54,6 +72,10 @@ class MqttConsumerApp:
         self.ambang_lancar = float(self.config.get("sistem_pakar.ambang_lancar", 44.0))
         self.ambang_padat = float(self.config.get("sistem_pakar.ambang_padat", 84.0))
         self.ambang_kecepatan = float(self.config.get("sistem_pakar.ambang_kecepatan_lambat_kmh", 15.0))
+        _naik = self.config.get("sistem_pakar.ambang_kecepatan_naik_kmh")
+        _turun = self.config.get("sistem_pakar.ambang_kecepatan_turun_kmh")
+        self.ambang_kecepatan_naik = float(_naik) if _naik is not None else None
+        self.ambang_kecepatan_turun = float(_turun) if _turun is not None else None
         self.interval_detik = float(self.config.get("agregasi.interval_detik", 20))
         
         # State Occupancy & Thread Safety
@@ -121,6 +143,28 @@ class MqttConsumerApp:
         logger.info("[Reset Harian] Kumulatif occupancy di-reset ke 0.")
         self.jadwalkan_reset()
 
+    def _akumulasi_counter(self, gerbang_id, counter: dict):
+        """Update kumulatif masuk/keluar per gerbang. Thread-safety: panggil di dalam state_lock."""
+        gate = identifikasi_gerbang(gerbang_id)
+        if gate is None:
+            logger.warning(f"[Occupancy] gerbang_id tidak dikenali: {gerbang_id!r}")
+            return
+        for key, jumlah in (counter or {}).items():
+            parts = str(key).split("_", 1)
+            if len(parts) != 2:
+                continue
+            arah, kelas = parts
+            if gate == "a":
+                if arah == "masuk":
+                    self.kumulatif_a_masuk[kelas] += jumlah
+                elif arah == "keluar":
+                    self.kumulatif_a_keluar[kelas] += jumlah
+            elif gate == "b":
+                if arah == "masuk":
+                    self.kumulatif_b_masuk[kelas] += jumlah
+                elif arah == "keluar":
+                    self.kumulatif_b_keluar[kelas] += jumlah
+
     def on_connect(self, client, userdata, flags, reason_code, properties=None):
         if reason_code == 0:
             topik = f"{self.topic_prefix}/+/agregasi"
@@ -145,23 +189,46 @@ class MqttConsumerApp:
             logger.warning(f"[Clock Drift] {gerbang_id} drift {abs(time.time() - ts):.1f}s.")
             
         try:
-            self.db.simpan_hitungan_interval(gerbang_id, time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ts)), counter)
+            self.db.simpan_hitungan_interval(
+                gerbang_id,
+                time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ts)),
+                counter,
+                arah_topografi_map=payload.get("arah_topografi_map"),
+            )
         except Exception as e:
             logger.error(f"[DB] Gagal simpan hitungan: {e}")
             return
             
         with self.state_lock:
-            for key, jumlah in counter.items():
-                parts = key.split("_", 1)
-                if len(parts) == 2:
-                    arah, kelas = parts
-                    gl = gerbang_id.lower()
-                    if "a" in gl:
-                        if arah == "masuk": self.kumulatif_a_masuk[kelas] += jumlah
-                        elif arah == "keluar": self.kumulatif_a_keluar[kelas] += jumlah
-                    elif "b" in gl:
-                        if arah == "masuk": self.kumulatif_b_masuk[kelas] += jumlah
-                        elif arah == "keluar": self.kumulatif_b_keluar[kelas] += jumlah
+            self._akumulasi_counter(gerbang_id, counter)
+            try:
+                occ = hitung_occupancy_ruas(self.kumulatif_a_masuk, self.kumulatif_b_keluar, self.kumulatif_b_masuk, self.kumulatif_a_keluar)
+                jumlah_eval = occ.jumlah_per_kelas
+            except Exception as e:
+                logger.error(f"[Occupancy] Error: {e}")
+                return
+
+        total_occ = sum(jumlah_eval.values())
+        kecepatan = payload.get("kecepatan_rata2_kmh")
+        kecepatan_naik = payload.get("kecepatan_naik_kmh")
+        kecepatan_turun = payload.get("kecepatan_turun_kmh")
+        
+        try:
+            hasil = evaluasi(
+                jumlah_eval,
+                self.kapasitas,
+                self.panjang_kendaraan,
+                self.ambang_lancar,
+                self.ambang_padat,
+                None,
+                None,
+                kecepatan,
+                self.ambang_kecepatan,
+                kecepatan_naik,
+                kecepatan_turun,
+                self.ambang_kecepatan_naik,
+                self.ambang_kecepatan_turun,
+            )
             try:
                 occ = hitung_occupancy_ruas(self.kumulatif_a_masuk, self.kumulatif_b_keluar, self.kumulatif_b_masuk, self.kumulatif_a_keluar)
                 jumlah_eval = occ.jumlah_per_kelas

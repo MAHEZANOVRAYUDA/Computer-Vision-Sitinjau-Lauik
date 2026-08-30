@@ -117,20 +117,18 @@ class Database:
         gerbang_id: str,
         timestamp_interval,
         rincian_per_lajur_arah_kelas: Dict[str, int],
+        arah_topografi_map: Optional[Dict[str, str]] = None,
     ):
         """
         Menyimpan hasil agregasi 1 interval ke tabel hitungan_kendaraan.
         rincian_per_lajur_arah_kelas contoh: {"masuk_motor": 12, "keluar_mobil": 5}
-
-        Perbaikan: validasi format key sebelum parse untuk menghindari
-        ValueError 'not enough values to unpack' jika format key tidak sesuai.
+        arah_topografi_map contoh: {"masuk": "naik", "keluar": "turun"}
         """
         with self._cursor() as cursor:
             for key, jumlah in rincian_per_lajur_arah_kelas.items():
                 if jumlah == 0:
                     continue
 
-                # Validasi format key: harus "arah_kelas" dengan maxsplit=1
                 parts = key.split("_", 1)
                 if len(parts) != 2:
                     logger.warning(
@@ -147,13 +145,17 @@ class Database:
                     )
                     continue
 
+                topo = None
+                if arah_topografi_map:
+                    topo = arah_topografi_map.get(arah)
+
                 cursor.execute(
                     """
                     INSERT INTO hitungan_kendaraan
-                        (id_gerbang, timestamp_interval, lajur_id, arah, jenis_kendaraan, jumlah_terhitung)
-                    VALUES (%s, %s, %s, %s, %s, %s)
+                        (id_gerbang, timestamp_interval, lajur_id, arah, jenis_kendaraan, jumlah_terhitung, arah_topografi)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
                     """,
-                    (gerbang_id, timestamp_interval, "gabungan", arah, kelas, jumlah),
+                    (gerbang_id, timestamp_interval, "gabungan", arah, kelas, jumlah, topo),
                 )
 
     def ambil_hitungan_terbaru(self, menit_terakhir: int = 5) -> List[Dict]:

@@ -36,6 +36,7 @@ from src.event_publisher import EventPublisher
 from src.logger import setup_logging, get_logger
 from src.mjpeg_streamer import start_stream_server, update_frame
 from src.video_source import SumberVideo
+from src.watchdog import SystemWatchdog
 
 # Logger diinisialisasi SETELAH setup_logging() dipanggil di jalankan()
 logger = get_logger(__name__)
@@ -114,6 +115,16 @@ def jalankan():
         logger.info(
             f"Video streaming aktif di http://localhost:{stream_port}/video_feed"
         )
+
+    if config.get("watchdog.aktif", True):
+        import threading
+        wd = SystemWatchdog(
+            max_ram_percent=float(config.get("watchdog.max_ram_percent", 90)),
+            max_temp_c=float(config.get("watchdog.max_temp_c", 80)),
+            check_interval=int(config.get("watchdog.check_interval", 10)),
+        )
+        threading.Thread(target=wd.monitor, daemon=True, name="watchdog").start()
+        logger.info("Watchdog suhu/RAM aktif (thread daemon).")
 
     # --- Video writer (opsional) ---
     video_writer = None
@@ -201,9 +212,13 @@ def jalankan():
             # --- Cek apakah sudah waktunya kirim agregasi interval ---
             waktu_sekarang = time.time()
             if waktu_sekarang - waktu_agregasi_terakhir >= interval_agregasi:
-                snapshot, avg_speed = detektor.reset_counter_interval()
+                snapshot, avg_speed, speed_topo, map_topo = detektor.reset_counter_interval()
                 publisher.kirim_agregasi_interval(
-                    gerbang_id, snapshot, avg_speed
+                    gerbang_id,
+                    snapshot,
+                    avg_speed,
+                    kecepatan_per_topografi=speed_topo,
+                    arah_topografi_map=map_topo,
                 )
                 waktu_agregasi_terakhir = waktu_sekarang
 

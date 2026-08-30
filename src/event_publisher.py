@@ -193,7 +193,14 @@ class EventPublisher:
 
         self.client.publish(topic, payload_str, qos=1)
 
-    def kirim_agregasi_interval(self, gerbang_id: str, snapshot_counter: dict, avg_speed: Optional[float] = None):
+    def kirim_agregasi_interval(
+        self,
+        gerbang_id: str,
+        snapshot_counter: dict,
+        avg_speed: Optional[float] = None,
+        kecepatan_per_topografi: Optional[dict] = None,
+        arah_topografi_map: Optional[dict] = None,
+    ):
         """
         Mengirim ringkasan hitungan per interval (mis. tiap 60 detik)
         ke topik terpisah - ini yang akan dibaca oleh modul agregasi
@@ -206,6 +213,13 @@ class EventPublisher:
         }
         if avg_speed is not None:
             payload["kecepatan_rata2_kmh"] = float(avg_speed)
+        if kecepatan_per_topografi:
+            if kecepatan_per_topografi.get("naik") is not None:
+                payload["kecepatan_naik_kmh"] = float(kecepatan_per_topografi["naik"])
+            if kecepatan_per_topografi.get("turun") is not None:
+                payload["kecepatan_turun_kmh"] = float(kecepatan_per_topografi["turun"])
+        if arah_topografi_map:
+            payload["arah_topografi_map"] = arah_topografi_map
 
         topic = f"{self.topic_prefix}/{gerbang_id}/agregasi"
         payload_str = json.dumps(payload)

@@ -29,9 +29,13 @@ Perbaikan v3 (Blueprint Perbaikan):
 import asyncio
 import os
 import sys
+import re
+import yaml
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import List
+
+from pydantic import BaseModel
 
 # Pastikan root proyek ada di sys.path agar import 'src.*' berfungsi
 # baik saat dijalankan dengan 'python src/api_server.py' maupun 'python -m src.api_server'
@@ -215,6 +219,7 @@ def _build_status_response() -> dict:
         )
     status_dict["occupancy_metode"] = metode
     status_dict["confidence_note"] = confidence_note
+    status_dict["kapasitas_meter_lajur"] = float(config.get("kapasitas_meter_lajur_computed") or config.get("sistem_pakar.kapasitas_meter_lajur", 56100))
 
     # Tambahkan field MKJI (Tahap 9) — backward compatible, field lama tetap ada
     # Field ini diisi dari kolom MKJI di status_ruas jika tersedia
@@ -251,6 +256,52 @@ async def _ws_broadcast_loop():
 def status_terkini():
     """Endpoint utama - dipanggil dashboard secara berkala (polling fallback)."""
     return _build_status_response()
+
+
+@app.get("/api/kendaraan-per-jenis")
+def kendaraan_per_jenis():
+    """Mengembalikan data kumulatif harian masuk dan keluar per jenis kendaraan dan per gerbang."""
+    raw_data = db.ambil_kumulatif_masuk_keluar_per_gerbang(sejak_jam=24)
+    
+    response = {
+        "per_gerbang": {},
+        "total_gabungan": {},
+        "total_masuk_hari_ini": 0,
+        "sejak_jam": 24
+    }
+    
+    # Process gerbang names and directions from raw_data keys (e.g., 'gerbang_a_masuk')
+    for key, data in raw_data.items():
+        if key.endswith("_masuk"):
+            gerbang = key[:-6]
+            arah = "masuk"
+        elif key.endswith("_keluar"):
+            gerbang = key[:-7]
+            arah = "keluar"
+        else:
+            continue
+            
+        if gerbang not in response["per_gerbang"]:
+            response["per_gerbang"][gerbang] = {}
+            
+        for kelas, jumlah in data.items():
+            if kelas not in response["per_gerbang"][gerbang]:
+                response["per_gerbang"][gerbang][kelas] = {"masuk": 0, "keluar": 0}
+            response["per_gerbang"][gerbang][kelas][arah] += jumlah
+            
+            if kelas not in response["total_gabungan"]:
+                response["total_gabungan"][kelas] = {"masuk": 0, "keluar": 0}
+            response["total_gabungan"][kelas][arah] += jumlah
+            
+            if arah == "masuk":
+                response["total_masuk_hari_ini"] += jumlah
+
+    # Ensure at least gerbang_a and gerbang_b exist in response to match contract even if empty
+    for g in ["gerbang_a", "gerbang_b"]:
+        if g not in response["per_gerbang"]:
+            response["per_gerbang"][g] = {}
+            
+    return response
 
 
 @app.get("/api/riwayat")
@@ -341,6 +392,95 @@ def export_riwayat(jam: int = 24, x_api_key: str = Header(default="", alias="X-A
     data = db.ambil_riwayat_status(jam_terakhir=jam)
     return {"jumlah_data": len(data), "data": [dict(d) for d in data]}
 
+
+# -----------------------------------------------------------------------
+# Endpoint Kalibrasi (Fase 4)
+# -----------------------------------------------------------------------
+
+class GarisInput(BaseModel):
+    titik_1: List[int]
+    titik_2: List[int]
+
+class LineInput(BaseModel):
+    id: str
+    garis: GarisInput
+
+class KalibrasiPayload(BaseModel):
+    lines: List[LineInput]
+
+@app.get("/api/kalibrasi/{gerbang_id}")
+def get_kalibrasi(gerbang_id: str):
+    """Membaca koordinat garis counting dari config."""
+    config_file = _ROOT / "config" / f"config_{gerbang_id}.yaml"
+    if not config_file.exists():
+        raise HTTPException(status_code=404, detail="Config gerbang tidak ditemukan")
+        
+    with open(config_file, "r") as f:
+        content = f.read()
+        
+    try:
+        data = yaml.safe_load(content)
+        kamera_list = data.get("kamera", [])
+        # Cari konfigurasi gerbang yang sesuai
+        for k in kamera_list:
+            if k.get("id") == gerbang_id:
+                return {"lines": k.get("counting_lines", [])}
+        return {"lines": []}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/kalibrasi/{gerbang_id}")
+def update_kalibrasi(gerbang_id: str, payload: KalibrasiPayload, x_api_key: str = Header(default="", alias="X-API-Key")):
+    """Menyimpan koordinat garis counting baru ke config."""
+    _require_api_key(x_api_key)
+    
+    config_file = _ROOT / "config" / f"config_{gerbang_id}.yaml"
+    if not config_file.exists():
+        raise HTTPException(status_code=404, detail="Config gerbang tidak ditemukan")
+        
+    with open(config_file, "r") as f:
+        content = f.read()
+        
+    lines = content.splitlines()
+    current_id = None
+    in_garis = False
+    
+    for i, line in enumerate(lines):
+        id_match = re.search(r'^\s*-\s*id:\s*["\']?(.*?)["\']?\s*$', line)
+        if id_match:
+            current_id = id_match.group(1)
+            in_garis = False
+            continue
+            
+        garis_match = re.search(r'^\s*garis:\s*$', line)
+        if garis_match:
+            in_garis = True
+            continue
+            
+        if in_garis and current_id:
+            t1_match = re.search(r'^(\s*titik_1:\s*\[).*?(\].*)$', line)
+            if t1_match:
+                for l in payload.lines:
+                    if l.id == current_id:
+                        lines[i] = f"{t1_match.group(1)}{l.garis.titik_1[0]}, {l.garis.titik_1[1]}{t1_match.group(2)}"
+            
+            t2_match = re.search(r'^(\s*titik_2:\s*\[).*?(\].*)$', line)
+            if t2_match:
+                for l in payload.lines:
+                    if l.id == current_id:
+                        lines[i] = f"{t2_match.group(1)}{l.garis.titik_2[0]}, {l.garis.titik_2[1]}{t2_match.group(2)}"
+                        
+    new_content = "\n".join(lines) + "\n"
+    with open(config_file, "w") as f:
+        f.write(new_content)
+        
+    return {"status": "success", "message": "Konfigurasi garis tersimpan"}
+
+@app.post("/api/kalibrasi/{gerbang_id}/reset-counter")
+def reset_counter(gerbang_id: str, x_api_key: str = Header(default="", alias="X-API-Key")):
+    """Reset counter untuk gerbang (sekarang manual via petunjuk)."""
+    _require_api_key(x_api_key)
+    return {"message": "Fitur hot-reload belum aktif. Silakan restart proses edge (main.py) secara manual untuk menerapkan konfigurasi baru."}
 
 # -----------------------------------------------------------------------
 # WebSocket Endpoint

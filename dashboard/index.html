@@ -7,6 +7,8 @@
 <meta name="description" content="Sistem pemantauan kemacetan real-time berbasis AI Computer Vision di jalan Sitinjau Lauik, Padang.">
 <link href="https://cdnjs.cloudflare.com/ajax/libs/normalize/8.0.1/normalize.min.css" rel="stylesheet">
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="shared.css">
+<script src="shared.js"></script>
 <script src="/vendor/chart.umd.min.js"></script>
 <script defer src="/vendor/alpine.min.js"></script>
 <style>
@@ -444,12 +446,20 @@
   <!-- Panel Kiri: Status Keseluruhan -->
   <div class="glass-panel status-utama memuat" id="panel-status">
     <div class="section-title" style="align-self: flex-start;">Kondisi Ruas Jalan</div>
-    <div class="status-ring-container">
-      <div class="status-ring"></div>
-      <div class="status-ring-inner"></div>
-      <div class="status-text-besar" id="status-text">MEMUAT</div>
+    <div class="status-ring-container" style="flex-direction: column; height: auto; padding-bottom: 2rem;">
+      <div style="position: relative; width: 220px; height: 220px; display: flex; align-items: center; justify-content: center;">
+        <div class="status-ring"></div>
+        <div class="status-ring-inner"></div>
+        <div class="status-text-besar" id="status-text">MEMUAT</div>
+      </div>
+      <div style="margin-top: 1rem; width: 100%; text-align: center;">
+          <div style="height: 6px; background: rgba(0,0,0,0.2); width: 80%; margin: 0 auto; border-radius: 3px;">
+              <div id="ring-progress-bar" style="height: 100%; width: 0%; background: var(--lancar); border-radius: 3px; transition: width 1s;"></div>
+          </div>
+          <div id="ring-kapasitas-text" style="font-size: 0.85rem; margin-top: 6px; color: var(--text-primary); font-weight: 500;">— / — meter-lajur</div>
+      </div>
     </div>
-    <div class="rekomendasi" id="rekomendasi-text">Menunggu data sistem pakar...</div>
+    <div class="rekomendasi" id="rekomendasi-text" style="margin-top: 0;">Menunggu data sistem pakar...</div>
 
     <!-- Status Sensor EDGE — dinamis dari /api/gerbang-status -->
     <div class="sensor-list">
@@ -477,12 +487,12 @@
 
   <!-- Panel Kanan: Data & Analitik -->
   <div>
-    <!-- Kamera Live Stream -->
+    <!-- Navigasi Kamera -->
     <div class="glass-panel" style="margin-bottom: 1.5rem;">
       <div class="section-title">Live Camera Feeds</div>
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;" id="camera-grid">
-        <!-- Diisi dinamis oleh JavaScript berdasarkan /api/gerbang-status -->
-        <div style="color: var(--text-tertiary); font-size: 0.85rem; padding: 1rem;">Memuat data kamera...</div>
+      <div style="display: flex; gap: 1rem; flex-wrap: wrap;" id="camera-buttons">
+        <!-- Diisi dinamis oleh JavaScript -->
+        <div style="color: var(--text-tertiary); font-size: 0.85rem; padding: 1rem;">Memuat data gerbang...</div>
       </div>
     </div>
 
@@ -513,9 +523,10 @@
 
 
 
-    <!-- Kendaraan 5 Menit Terakhir -->
+    <!-- Kendaraan Per Jenis (Hari Ini) -->
     <div class="glass-panel" style="margin-bottom: 1.5rem;">
-      <div class="section-title">Aktivitas Kendaraan (5 Menit Terakhir)</div>
+      <div class="section-title">Kendaraan Per Jenis (Hari Ini)</div>
+      <div style="font-size: 1.1rem; font-weight: 700; margin-bottom: 1rem; color: #fff;" id="total-masuk-hari-ini">Total Masuk Hari Ini: 0</div>
       <div class="kendaraan-grid">
         <div class="veh-card">
           <div class="veh-icon" style="font-size:0;">
@@ -523,7 +534,7 @@
           </div>
           <div class="veh-info">
             <div class="veh-label">Mobil</div>
-            <div class="veh-count" id="count-mobil">0</div>
+            <div class="veh-count" style="font-size: 0.95rem; font-weight: normal; margin-top: 4px;" id="kendaraan-mobil">Masuk: 0<br>Keluar: 0</div>
           </div>
         </div>
         <div class="veh-card">
@@ -532,7 +543,7 @@
           </div>
           <div class="veh-info">
             <div class="veh-label">Truk</div>
-            <div class="veh-count" id="count-truk">0</div>
+            <div class="veh-count" style="font-size: 0.95rem; font-weight: normal; margin-top: 4px;" id="kendaraan-truk">Masuk: 0<br>Keluar: 0</div>
           </div>
         </div>
         <div class="veh-card">
@@ -541,7 +552,7 @@
           </div>
           <div class="veh-info">
             <div class="veh-label">Bus</div>
-            <div class="veh-count" id="count-bus">0</div>
+            <div class="veh-count" style="font-size: 0.95rem; font-weight: normal; margin-top: 4px;" id="kendaraan-bus">Masuk: 0<br>Keluar: 0</div>
           </div>
         </div>
         <div class="veh-card">
@@ -550,7 +561,7 @@
           </div>
           <div class="veh-info">
             <div class="veh-label">Motor</div>
-            <div class="veh-count" id="count-motor">0</div>
+            <div class="veh-count" style="font-size: 0.95rem; font-weight: normal; margin-top: 4px;" id="kendaraan-motor">Masuk: 0<br>Keluar: 0</div>
           </div>
         </div>
       </div>
@@ -577,8 +588,6 @@
   // ================================================================
   // KONFIGURASI
   // ================================================================
-  const API_BASE = window.location.origin; // Otomatis ikut domain/port server
-  const WS_URL   = `ws://${window.location.host}/ws/live`;
   const STALE_THRESHOLD_MS = 60_000; // 60 detik sebelum tampil banner stale
 
   let trendChart;
@@ -716,10 +725,33 @@
       const losLbl = document.getElementById("val-los-occupancy-label");
       if (losLbl) losLbl.textContent = `LOS occupancy ${losOcc} | ${data.status_label || "—"}`;
       const occProg = document.getElementById("occ-progress");
+      
+      const v = parseFloat(occRatio);
+      const persen = Math.min(v * 100, 100);
+      const dinamisWarna = interpolasiWarnaKapasitas(persen);
+      
       if (occProg) {
-        occProg.style.width = Math.min(parseFloat(occRatio) * 100, 100) + "%";
-        const v = parseFloat(occRatio);
-        occProg.style.background = v > 0.84 ? "var(--macet)" : (v > 0.44 ? "var(--padat)" : "var(--lancar)");
+        occProg.style.width = persen + "%";
+        occProg.style.background = dinamisWarna;
+      }
+      
+      // Update dinamis status-ring
+      const ringEl = document.querySelector(".status-ring");
+      const ringInnerEl = document.querySelector(".status-ring-inner");
+      if (ringEl) ringEl.style.borderColor = dinamisWarna;
+      if (ringInnerEl) ringInnerEl.style.borderColor = dinamisWarna;
+      document.getElementById("status-text").style.color = dinamisWarna;
+      
+      const ringProg = document.getElementById("ring-progress-bar");
+      if (ringProg) {
+          ringProg.style.width = persen + "%";
+          ringProg.style.backgroundColor = dinamisWarna;
+      }
+      
+      const fmt = new Intl.NumberFormat('id-ID');
+      const ringKapTxt = document.getElementById("ring-kapasitas-text");
+      if (ringKapTxt && data.kapasitas_meter_lajur) {
+          ringKapTxt.textContent = `${(v*100).toFixed(1)}% kapasitas terpakai — ${fmt.format(data.volume_smp)} / ${fmt.format(data.kapasitas_meter_lajur)} meter-lajur`;
       }
     }
 
@@ -756,13 +788,27 @@
       }
     }
 
-    // Rincian kendaraan
-    if (data.rincian) {
-      document.getElementById("count-mobil").textContent = data.rincian.mobil || 0;
-      document.getElementById("count-truk").textContent  = data.rincian.truk  || 0;
-      document.getElementById("count-bus").textContent   = data.rincian.bus   || 0;
-      document.getElementById("count-motor").textContent = data.rincian.motor || 0;
-    }
+    // Rincian kendaraan dihapus dari renderStatus karena dipindah ke fetchKendaraanPerJenis()
+  }
+
+  async function fetchKendaraanPerJenis() {
+      try {
+          const res = await fetch(`${API_BASE}/api/kendaraan-per-jenis`);
+          const json = await res.json();
+          document.getElementById("total-masuk-hari-ini").textContent = `Total Masuk Hari Ini: ${json.total_masuk_hari_ini}`;
+          ['mobil', 'truk', 'bus', 'motor'].forEach(c => {
+              const el = document.getElementById(`kendaraan-${c}`);
+              // API mungkin mengembalikan "truck" alih-alih "truk"
+              const className = c === 'truk' && !json.total_gabungan['truk'] && json.total_gabungan['truck'] ? 'truck' : c;
+              if (el && json.total_gabungan[className]) {
+                  const m = json.total_gabungan[className].masuk || 0;
+                  const k = json.total_gabungan[className].keluar || 0;
+                  el.innerHTML = `Masuk: ${m}<br>Keluar: ${k}`;
+              }
+          });
+      } catch (e) {
+          console.warn("Gagal fetch kendaraan per jenis", e);
+      }
   }
 
   // ================================================================
@@ -955,37 +1001,20 @@
         sensorEl.innerHTML = `<div class="sensor-row"><span style="color:var(--text-tertiary)">Belum ada gerbang terdaftar</span></div>`;
       }
 
-      // Update camera grid dinamis
-      const cameraGrid = document.getElementById("camera-grid");
-      const aktifGerbang = gerbangList.filter(g => g.status_perangkat === "aktif");
-      if (aktifGerbang.length === 0) {
-        cameraGrid.innerHTML = `<div style="color:var(--text-tertiary);font-size:0.85rem;padding:1rem;grid-column:span 2">Tidak ada kamera aktif saat ini.</div>`;
-        return;
-      }
-
-      // Tentukan port stream: gerbang_a=9001, gerbang_b=9002, dst.
-      const portMap = { gerbang_a: 9001, gerbang_b: 9002 };
-      cameraGrid.innerHTML = "";
-      cameraGrid.style.gridTemplateColumns = aktifGerbang.length === 1 ? "1fr" : "1fr 1fr";
-
-      for (const g of aktifGerbang) {
-        const port = portMap[g.id_gerbang] || 9001;
-        const label = (g.nama_gerbang || g.id_gerbang).toUpperCase();
-        // Arah kamera — label untuk laporan dan demo
-        const arahLabel = g.id_gerbang === "gerbang_a" ? "↓ Menuju Padang" : "↑ Menuju Solok";
-        const svgOffline = `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='960' height='540'><rect width='100%' height='100%' fill='%23131c2e'/><text x='50%' y='50%' fill='%2364748b' font-family='sans-serif' font-size='24' text-anchor='middle'>${encodeURIComponent(label)} Offline / Reconnecting...</text></svg>`;
-        const statusId = `cam-status-${g.id_gerbang}`;
-        
-        cameraGrid.innerHTML += `
-          <div style="position:relative;border-radius:8px;overflow:hidden;border:1px solid var(--glass-border); display:flex; flex-direction:column; background:var(--bg-base);">
-            <div style="position:absolute;top:0;left:0;background:rgba(0,0,0,0.7);padding:4px 8px;font-size:0.75rem;border-bottom-right-radius:8px;color:#fff;z-index:10;font-weight:bold;letter-spacing:1px;display:flex;align-items:center;gap:6px;">
-              ${label} <span style="color:#94a3b8;font-weight:400;font-size:0.65rem;">${arahLabel}</span>
-              <span id="${statusId}" style="color:var(--text-tertiary);">⌛ Reconnecting...</span>
-            </div>
-            <img src="http://${window.location.hostname}:${port}/video_feed" style="width:100%;height:100%;object-fit:cover;display:block;"
-              onload="document.getElementById('${statusId}').innerHTML='● Live'; document.getElementById('${statusId}').style.color='var(--lancar)';"
-              onerror="document.getElementById('${statusId}').innerHTML='○ Offline'; document.getElementById('${statusId}').style.color='var(--macet)'; this.onerror=null;this.src='${svgOffline}';">
-          </div>`;
+      // Update navigasi kamera
+      const cameraBtns = document.getElementById("camera-buttons");
+      cameraBtns.innerHTML = "";
+      for (const g of gerbangList) {
+          const status = (g.status_perangkat || "nonaktif").toLowerCase();
+          const label = (g.nama_gerbang || g.id_gerbang).toUpperCase();
+          const arahLabel = g.id_gerbang === "gerbang_a" ? "Jl. Padang Basi" : "Jembatan Timbang Oto";
+          const idGerbangParam = g.id_gerbang.split('_')[1] || g.id_gerbang;
+          
+          if (status === "aktif") {
+              cameraBtns.innerHTML += `<a href="gerbang.html?gerbang=${idGerbangParam}" class="btn-refresh" style="text-decoration: none; display: inline-flex; align-items: center; justify-content: center; padding: 0.75rem 1.5rem; font-weight: bold; background: var(--glass-bg); color: #fff; border: 1px solid var(--lancar);">📹 Lihat ${label} — ${arahLabel}</a>`;
+          } else {
+              cameraBtns.innerHTML += `<span class="btn-refresh" style="opacity: 0.5; cursor: not-allowed; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; padding: 0.75rem 1.5rem; font-weight: bold; background: var(--glass-bg); color: #fff; border: 1px solid var(--text-tertiary);">📹 Lihat ${label} — ${arahLabel} (Offline)</span>`;
+          }
       }
     } catch (e) {
       console.warn("Gagal ambil status gerbang:", e);
@@ -999,6 +1028,7 @@
     fetchRiwayat();
     fetchInfoSistem();
     fetchGerbangStatus();
+    fetchKendaraanPerJenis();
   }
 
   // ================================================================
@@ -1009,9 +1039,11 @@
   fetchRiwayat();
   fetchInfoSistem();
   fetchGerbangStatus();
+  fetchKendaraanPerJenis();
 
   // Refresh grafik dan info statis setiap 20 detik
   setInterval(fetchRiwayat, 20_000);
+  setInterval(fetchKendaraanPerJenis, 30_000);
   // Refresh status gerbang setiap 60 detik (tidak sering berubah)
   setInterval(fetchGerbangStatus, 60_000);
 

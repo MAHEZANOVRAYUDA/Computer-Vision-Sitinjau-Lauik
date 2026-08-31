@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Live Camera — Sitinjau Lauik</title>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/normalize/8.0.1/normalize.min.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="shared.css">
+<script src="shared.js"></script>
+<style>
+  .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 2rem;
+  }
+  
+  .tabs {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+  }
+  .tab-btn {
+      padding: 0.75rem 1.5rem;
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid var(--glass-border);
+      color: #fff;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      text-decoration: none;
+  }
+  .tab-btn.active {
+      background: var(--accent);
+      color: #003366;
+  }
+  
+  .video-container {
+      width: 100%;
+      background: #000;
+      border-radius: 8px;
+      overflow: hidden;
+      aspect-ratio: 16/9;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+  }
+  .video-container img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+  }
+  .video-placeholder {
+      position: absolute;
+      color: var(--text-tertiary);
+      font-size: 1.2rem;
+  }
+  
+  .metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-top: 1.5rem;
+  }
+  .metric-card {
+    background: rgba(0,0,0,0.2);
+    border: 1px solid rgba(255,204,0,0.3);
+    border-radius: 12px;
+    padding: 1rem;
+    text-align: center;
+  }
+  .metric-val { font-size: 1.5rem; font-weight: bold; font-family: var(--mono); }
+  .metric-label { font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase; }
+  
+  #koneksi-status { margin-bottom: 1rem; font-weight: 600; }
+</style>
+</head>
+<body>
+
+<div class="header">
+    <a href="index.html" class="btn-back" id="btn-back">← Kembali ke Dashboard</a>
+    <h2 id="page-title" style="margin: 0;">Live Camera</h2>
+</div>
+
+<div class="glass-panel">
+    <div class="tabs">
+        <a href="gerbang.html?gerbang=a" class="tab-btn" id="tab-a">Gerbang A (Padang Basi)</a>
+        <a href="gerbang.html?gerbang=b" class="tab-btn" id="tab-b">Gerbang B (Jembatan Timbang)</a>
+    </div>
+    
+    <div id="koneksi-status" style="color: var(--padat);">Memuat stream kamera...</div>
+    
+    <div class="video-container">
+        <div class="video-placeholder" id="video-placeholder">Menghubungkan...</div>
+        <!-- Img src diisi lewat JS lazy load -->
+        <img id="video-feed" src="" style="display:none;" />
+    </div>
+    
+    <div class="metrics-grid">
+        <div class="metric-card">
+            <div class="metric-label">Mobil (In / Out)</div>
+            <div class="metric-val" id="met-mobil">0 / 0</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-label">Truk (In / Out)</div>
+            <div class="metric-val" id="met-truk">0 / 0</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-label">Bus (In / Out)</div>
+            <div class="metric-val" id="met-bus">0 / 0</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-label">Motor (In / Out)</div>
+            <div class="metric-val" id="met-motor">0 / 0</div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        const urlParams = new URLSearchParams(window.location.search);
+        let gerbang = urlParams.get('gerbang');
+        if (gerbang !== 'a' && gerbang !== 'b') {
+            gerbang = 'a'; // default
+        }
+        
+        // Update Tabs UI
+        if (gerbang === 'a') {
+            document.getElementById('tab-a').classList.add('active');
+            document.getElementById('page-title').textContent = "Live Camera - Gerbang A";
+        } else {
+            document.getElementById('tab-b').classList.add('active');
+            document.getElementById('page-title').textContent = "Live Camera - Gerbang B";
+        }
+        
+        // Handle unmount/unload to stop stream
+        const backBtn = document.getElementById("btn-back");
+        backBtn.addEventListener('click', () => {
+            document.getElementById("video-feed").src = "";
+        });
+        window.addEventListener('beforeunload', () => {
+            document.getElementById("video-feed").src = "";
+        });
+        
+        // Port matching based on gerbang
+        const port = gerbang === 'a' ? 9001 : 9002;
+        const img = document.getElementById("video-feed");
+        const ph = document.getElementById("video-placeholder");
+        const statusEl = document.getElementById("koneksi-status");
+        
+        const hostname = window.location.hostname || "localhost";
+        
+        img.onload = () => {
+            img.style.display = "block";
+            ph.style.display = "none";
+            statusEl.textContent = `● Live (Port ${port})`;
+            statusEl.style.color = "var(--lancar)";
+        };
+        img.onerror = () => {
+            img.style.display = "none";
+            ph.style.display = "block";
+            ph.textContent = "Kamera Offline / Reconnecting...";
+            statusEl.textContent = "○ Offline";
+            statusEl.style.color = "var(--macet)";
+            // try to reconnect after some time
+            setTimeout(() => {
+                img.src = `http://${hostname}:${port}/video_feed?t=${Date.now()}`;
+            }, 5000);
+        };
+        
+        // Set stream URL to start loading
+        img.src = `http://${hostname}:${port}/video_feed`;
+        
+        // Fetch stats
+        fetchStats(gerbang);
+        setInterval(() => fetchStats(gerbang), 30000);
+    });
+    
+    async function fetchStats(gerbang) {
+        try {
+            const res = await fetch(`${API_BASE}/api/kendaraan-per-jenis`);
+            const json = await res.json();
+            const gKey = `gerbang_${gerbang}`;
+            if (json.per_gerbang && json.per_gerbang[gKey]) {
+                const data = json.per_gerbang[gKey];
+                ['mobil', 'truk', 'bus', 'motor'].forEach(c => {
+                    const el = document.getElementById(`met-${c}`);
+                    const className = c === 'truk' && !data['truk'] && data['truck'] ? 'truck' : c;
+                    if (el && data[className]) {
+                        const m = data[className].masuk || 0;
+                        const k = data[className].keluar || 0;
+                        el.textContent = `${m} / ${k}`;
+                    }
+                });
+            }
+        } catch (e) {
+            console.error("Gagal fetch data gerbang", e);
+        }
+    }
+</script>
+</body>
+</html>

@@ -30,7 +30,7 @@ class Visualizer:
                 )
 
         # Gambar bounding box hasil deteksi
-        if hasil_deteksi.boxes is not None and hasil_deteksi.boxes.id is not None:
+        if tampilkan_garis and hasil_deteksi.boxes is not None and hasil_deteksi.boxes.id is not None:
             boxes = hasil_deteksi.boxes.xyxy.cpu().numpy()
             track_ids = hasil_deteksi.boxes.id.cpu().numpy().astype(int)
             class_ids = hasil_deteksi.boxes.cls.cpu().numpy().astype(int)

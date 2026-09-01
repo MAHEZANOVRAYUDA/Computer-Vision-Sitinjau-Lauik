@@ -140,6 +140,55 @@ sitinjau-lauik-cv/
 
 ---
 
+---
+
+## 📊 Metodologi Perhitungan & Rumus Inti
+
+Sistem ini menjalankan **dua metodologi berbeda** secara paralel. Metrik utama pada dashboard menggunakan pendekatan *Occupancy-Based*, sedangkan standar MKJI 1997 digunakan murni sebagai metrik pembanding (indikatif).
+
+### 1. Occupancy-Based Congestion Detection (Metrik Utama)
+Status kemacetan dihitung dari rasio kepadatan kendaraan riil di ruas jalan terhadap Kapasitas Volumetrik Ruas (KVR). Ini sangat relevan untuk medan ekstrem seperti Sitinjau Lauik di mana kemacetan lebih sering dipicu oleh *bottleneck* spasial (seperti truk panjang yang mogok) daripada sekadar volume kendaraan yang tinggi.
+
+**A. Rumus Occupancy (Kekekalan Kendaraan):**
+Dengan asumsi 2 gerbang (A = Padang Basi, B = Solok):
+```text
+Occupancy(A→B, kelas) = max(0, Kumulatif_Masuk_A[kelas] - Kumulatif_Keluar_B[kelas])
+Occupancy(B→A, kelas) = max(0, Kumulatif_Masuk_B[kelas] - Kumulatif_Keluar_A[kelas])
+```
+*Artinya: Selisih jumlah yang masuk dan yang keluar adalah jumlah riil kendaraan yang sedang berada (terjebak/berjalan) di dalam ruas jalan.*
+
+**B. Rumus Volume Meter-Lajur & Kapasitas Volumetrik Ruas (KVR):**
+```text
+Volume_meter_lajur = Σ (jumlah_kendaraan[kelas] × panjang_fisik[kelas])
+
+KVR = (panjang_ruas × pct_sempit × kapasitas_lateral_sempit)
+    + (panjang_ruas × pct_lebar × kapasitas_lateral_lebar)
+
+Persentase_kepadatan = (Volume_meter_lajur / KVR) × 100%
+```
+*Catatan: Kolom rasio_vc di dashboard adalah representasi persentase kepadatan ini, bukan V/C MKJI murni.*
+
+**C. Hybrid Speed Override (Deteksi Cepat Kemacetan):**
+Jika kecepatan rata-rata terukur < 15 km/jam (ambang bisa dikonfigurasi), status dipaksa **MACET** terlepas dari persentase occupancy. Hal ini dirancang untuk mendeteksi secara instan jika ada truk mogok/kecelakaan yang menyebabkan lalu lintas berhenti, padahal ruas jalan belum penuh terisi.
+
+### 2. Standar MKJI 1997 (Metrik Pembanding Indikatif)
+Dihitung dari arus 15 menit terakhir yang diekstrapolasi ke smp/jam.
+```text
+Kapasitas (C) = C0 × FCw × FCsp × FCsf × FCcs
+Rasio V/C = Volume (smp/jam) / Kapasitas
+```
+- **C0**: 2900 smp/jam (standar jalan 2/2 UD, Tabel 5-2 MKJI 1997)
+- **Volume SMP**: Dikonversi menggunakan EMP (Ekuivalen Mobil Penumpang) khusus medan gunung:
+  - Motor: 0.4
+  - Mobil: 1.0
+  - Bus: 3.25
+  - Truk (termasuk berat): 5.0
+*(Nilai ini menggunakan rentang tengah dari standar pegunungan MKJI).*
+
+> **Disclaimer MKJI**: Gradien Sitinjau Lauik (20-26%) jauh melampaui rentang normal yang menjadi basis riset MKJI 1997. Oleh karena itu, metrik MKJI di sistem ini hanya disediakan sebagai **pembanding akademis** dan sebaiknya tidak digunakan sebagai acuan *safety critical*.
+
+---
+
 ## 🛠️ Pemeliharaan dan Troubleshooting
 
 - **Sistem berjalan lambat (FPS rendah)**: Sesuaikan parameter `frame_skip` pada `config.yaml` menjadi lebih tinggi (contoh: 4 atau 5).
@@ -148,4 +197,4 @@ sitinjau-lauik-cv/
 
 ---
 
-*Dikembangkan untuk penelitian, pemantauan, dan manajemen lalu lintas cerdas di wilayah dengan topografi menantang.*
+*Dikembangkan untuk penelitian, pemantauan, dan manajemen lalu lintas cerdas di wilayah dengan topografi menantang (Sitinjau Lauik).*

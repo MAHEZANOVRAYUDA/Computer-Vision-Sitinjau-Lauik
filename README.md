@@ -18,6 +18,7 @@ Sistem pemantauan lalu lintas pintar (Intelligent Traffic Monitoring System) ber
 - **Sistem Pakar Kemacetan**: Menganalisis tingkat keparahan kemacetan secara otomatis menggunakan logika *rule-based* (Sistem Pakar).
 - **Hardware Watchdog**: Memantau kesehatan sistem seperti penggunaan CPU, RAM, dan Suhu (pada perangkat Edge) untuk mencegah *overheating* atau memori penuh.
 - **Live Video Streaming**: Mendukung stream video MJPEG ke *browser* untuk visualisasi langsung (*live dashboard*).
+- **PUPR Command Center Dashboard**: Antarmuka web tangguh dengan skema warna spesifik (PUPR Solid Navy & Kuning) yang didesain agar tidak memicu kelelahan mata (*eye strain-free*) saat digunakan untuk *monitoring* berjam-jam.
 
 ---
 
@@ -67,14 +68,15 @@ docker-compose up -d
 ```
 *Dashboard dapat diakses di `http://localhost:8000`*
 
-## 🔧 Panduan Kalibrasi (Visual)
+## 🔧 Panduan Kalibrasi Garis Virtual (Admin Panel)
 
-Mulai versi v3, kalibrasi posisi garis hitung (counting line) tidak perlu lagi mengedit `config.yaml` secara manual.
+Mulai versi v3, sistem dilengkapi dengan **Admin Panel** khusus agar konfigurasi gerbang dan garis batas tidak perlu lagi mengedit `config.yaml` secara manual.
 
 1. Buka dashboard di browser (`http://localhost:8000`).
-2. Masuk ke halaman gerbang spesifik yang ingin dikalibrasi (misal, klik "Lihat Gerbang A").
-3. Di dalam halaman gerbang, buka **Panel Admin Kalibrasi**.
-4. Geser titik garis secara interaktif pada gambar snapshot kamera menggunakan *mouse*, lalu klik **Simpan Konfigurasi**. Konfigurasi `.yaml` akan diperbarui secara otomatis tanpa perlu *restart*.
+2. Klik tombol navigasi (atau akses langsung ke `http://localhost:8000/login.html`) untuk masuk ke halaman Login.
+3. Gunakan kredensial admin Anda untuk login.
+4. Di dalam **Admin Panel**, pindah ke *tab* **Kalibrasi Garis Virtual**. Pilih Gerbang yang ingin disesuaikan (Gerbang A atau B).
+5. Geser titik garis secara interaktif pada *snapshot* kamera menggunakan *mouse*, lalu klik **Simpan Konfigurasi Garis**. Log perubahan akan langsung tercatat, dan algoritma *Counting* akan otomatis menggunakan garis batas yang baru.
 
 ---
 

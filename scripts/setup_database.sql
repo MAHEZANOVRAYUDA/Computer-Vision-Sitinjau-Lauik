@@ -101,6 +101,21 @@ ALTER TABLE status_ruas
 
 
 -- ---------------------------------------------------------------------
+-- Tabel 5: log_aktivitas (Tahap 2)
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS log_aktivitas (
+    id_log          BIGSERIAL PRIMARY KEY,
+    waktu           TIMESTAMP DEFAULT NOW(),
+    kategori        VARCHAR(30) NOT NULL,
+    gerbang_id      VARCHAR(50),
+    deskripsi       TEXT NOT NULL,
+    actor           VARCHAR(50),
+    detail_json     JSONB
+);
+CREATE INDEX IF NOT EXISTS idx_log_waktu ON log_aktivitas(waktu);
+CREATE INDEX IF NOT EXISTS idx_log_kategori ON log_aktivitas(kategori);
+
+-- ---------------------------------------------------------------------
 -- Data awal (seed) untuk prototipe: 1 ruas jalan + Gerbang A
 -- ---------------------------------------------------------------------
 INSERT INTO ruas_jalan (

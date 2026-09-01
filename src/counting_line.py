@@ -24,6 +24,10 @@ import time
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
+from src.logger import get_logger
+
+logger = get_logger(__name__)
+
 # Ambang histeresis sisi garis — Tahap 7: mencegah jitter piksel kecil
 # di sekitar garis memicu event double-count.
 # Unit: nilai cross-product 2D (bergantung skala frame).
@@ -170,8 +174,7 @@ class PelacakLintasGaris:
                         laju = _estimasi_laju_least_squares(hist)
                         arah_perpindahan_sisi = sisi_sekarang - sisi_sebelumnya
                         if laju is not None and (laju * arah_perpindahan_sisi) < 0:
-                            import logging
-                            logging.getLogger(__name__).warning(f"SKIPPED DUE TO LAJU: id={track_id} laju={laju} arah={arah_perpindahan_sisi}")
+                            logger.warning(f"SKIPPED DUE TO LAJU: id={track_id} laju={laju} arah={arah_perpindahan_sisi}")
                             # Arah tidak konsisten, update state firm tapi jangan hitung
                             self._sisi_terakhir[key] = sisi_sekarang
                             continue
@@ -185,8 +188,7 @@ class PelacakLintasGaris:
                             speed_ms = abs(laju_piksel_per_detik) / garis.pixel_per_meter
                             speed_kmh = speed_ms * 3.6
 
-                    import logging
-                    logging.getLogger(__name__).info(f"CROSSED LINE SUCCESS: id={track_id} line={garis.line_id} x={x_center} y={y_center}")
+                    logger.debug(f"CROSSED LINE SUCCESS: id={track_id} line={garis.line_id} x={x_center} y={y_center}")
 
                     events.append(
                         {

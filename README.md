@@ -26,7 +26,8 @@ Sistem pemantauan lalu lintas pintar (Intelligent Traffic Monitoring System) ber
 Sistem ini dirancang untuk dapat dijalankan secara tersebar (*distributed*):
 1. **Edge Node (Kamera / Sumber Video)**: Menjalankan `src/main.py`. Node ini membaca frame dari kamera/RTSP, menjalankan inferensi AI, dan mengirimkan hasil agregasi (bukan frame video penuh) melalui MQTT.
 2. **Message Broker**: Menggunakan Mosquitto MQTT untuk menjembatani komunikasi data.
-3. **Dashboard / Backend**: Mengkonsumsi data dari MQTT (via websocket atau backend server) untuk disajikan dalam antarmuka web interaktif.
+3. **Consumer Server**: Menjalankan `src/mqtt_consumer.py`. Menerima data dari MQTT, menghitung agregasi (termasuk algoritma MKJI & Sistem Pakar), dan menyimpan ke PostgreSQL.
+4. **API Server & Dashboard**: Menjalankan `src/api_server.py`. Menyediakan API (FastAPI) dan melayani antarmuka web interaktif melalui WebSocket.
 
 ---
 
@@ -57,14 +58,23 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 4. Setup Database & MQTT
-Sistem membutuhkan database SQLite lokal dan MQTT Broker.
+### 4. Setup Database, MQTT, dan Menjalankan Sistem
+Sistem membutuhkan PostgreSQL dan Mosquitto MQTT. Cara termudah (dan direkomendasikan untuk production) adalah menggunakan Docker:
+
 ```bash
-# Inisialisasi Database
-python scripts/setup_database.sql # (Atau jalankan skrip setup DB yang sesuai)
-python scripts/migrate_db.py
+# Menjalankan seluruh stack (Database, MQTT, Consumer, API, Edge)
+docker-compose up -d
 ```
-*Catatan: Pastikan service Mosquitto MQTT berjalan di `localhost:1883`.*
+*Dashboard dapat diakses di `http://localhost:8000`*
+
+## 🔧 Panduan Kalibrasi (Visual)
+
+Mulai versi v3, kalibrasi posisi garis hitung (counting line) tidak perlu lagi mengedit `config.yaml` secara manual.
+
+1. Buka dashboard di browser (`http://localhost:8000`).
+2. Masuk ke halaman gerbang spesifik yang ingin dikalibrasi (misal, klik "Lihat Gerbang A").
+3. Di dalam halaman gerbang, buka **Panel Admin Kalibrasi**.
+4. Geser titik garis secara interaktif pada gambar snapshot kamera menggunakan *mouse*, lalu klik **Simpan Konfigurasi**. Konfigurasi `.yaml` akan diperbarui secara otomatis tanpa perlu *restart*.
 
 ---
 
@@ -86,17 +96,20 @@ Sesuaikan parameter pada file `config.yaml` atau spesifik per-gerbang seperti `c
 
 ## 💻 Cara Menjalankan
 
-### Menjalankan Node Detektor (Edge)
-Untuk menjalankan sistem utama yang memproses video dan deteksi:
+### Menjalankan Tanpa Docker (Pengembangan)
+Jika Anda ingin mengembangkan sistem tanpa Docker, Anda harus menjalankan tiga komponen ini di terminal terpisah:
 
 ```bash
-# Menjalankan dengan konfigurasi default
-python src/main.py
+# 1. Jalankan Consumer (Pemroses MQTT -> Database)
+python src/mqtt_consumer.py
 
-# Menjalankan untuk kamera/gerbang tertentu dengan custom config
-python src/main.py --config config/config_gerbang_a.yaml --kamera gerbang_a
+# 2. Jalankan API Server (Dashboard Web)
+python src/api_server.py
+
+# 3. Jalankan Edge (Pemrosesan Video/Kamera)
+python src/main.py --config config/config_gerbang_a.yaml
 ```
-Tekan tombol `q` pada jendela video untuk menghentikan program dengan aman.
+Tekan tombol `q` pada jendela video edge untuk menghentikan deteksi.
 
 ### Menjalankan Pengujian (Testing)
 Sistem ini menggunakan kerangka kerja `pytest`. Untuk memastikan semua modul logika berjalan baik:

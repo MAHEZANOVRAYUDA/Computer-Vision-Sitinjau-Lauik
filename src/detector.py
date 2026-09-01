@@ -239,5 +239,6 @@ class DetektorKendaraan:
             logger.debug("[detector] State predictor Ultralytics direset.")
             
         self.pelacak_garis = PelacakLintasGaris(self.daftar_garis)
+        self.counter_kumulatif = defaultdict(int)
 
-        logger.info("Tracker & pelacak garis direset (video di-loop ulang).")
+        logger.info("Tracker & pelacak garis direset (video di-loop ulang atau command reset).")

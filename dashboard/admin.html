@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Panel — Sitinjau Lauik</title>
+<link href="https://cdnjs.cloudflare.com/ajax/libs/normalize/8.0.1/normalize.min.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="shared.css">
+<script src="shared.js"></script>
+<style>
+    .admin-container {
+        max-width: 1400px;
+        margin: 2rem auto;
+        padding: 0 1rem;
+    }
+    
+    .tabs {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+        border-bottom: 1px solid rgba(0,0,0,0.1);
+        padding-bottom: 0.5rem;
+    }
+    .tab-btn {
+        background: transparent;
+        border: none;
+        color: var(--text-dark-secondary);
+        padding: 0.75rem 1.5rem;
+        font-size: 1rem;
+        font-family: var(--font-display);
+        font-weight: 600;
+        cursor: pointer;
+        border-radius: 8px 8px 0 0;
+        transition: all 0.2s;
+    }
+    .tab-btn:hover {
+        color: var(--text-dark-primary);
+        background: rgba(0,0,0,0.05);
+    }
+    .tab-btn.active {
+        color: var(--pupr-navy);
+        border-bottom: 3px solid var(--pupr-yellow);
+        background: rgba(255, 204, 0, 0.2);
+    }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; animation: fadeIn 0.3s ease; }
+    
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+    /* Log Tab Styles */
+    .log-table {
+        width: 100%;
+        border-collapse: collapse;
+        background: var(--glass-bg);
+        border-radius: 8px;
+        overflow: hidden;
+        border: none;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+    .log-table th, .log-table td {
+        padding: 1rem;
+        text-align: left;
+        border-bottom: 1px solid rgba(255,255,255,0.1);
+        color: var(--text-primary);
+    }
+    .log-table th { background: rgba(0,0,0,0.2); color: var(--pupr-yellow); font-weight: 600; }
+    .badge { padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: bold; }
+    .badge-kalibrasi { background: rgba(59, 130, 246, 0.2); color: #60a5fa; }
+    .badge-reset_counter { background: rgba(239, 68, 68, 0.2); color: #f87171; }
+    
+    /* Kalibrasi Tab Styles */
+    .layout-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem; }
+    @media (max-width: 1024px) { .layout-grid { grid-template-columns: 1fr; } }
+    .canvas-container {
+        position: relative; background: #000; border-radius: 8px;
+        overflow: hidden; border: 1px solid rgba(255,255,255,0.1);
+    }
+    canvas { display: block; width: 100%; height: auto; cursor: crosshair; }
+    .watermark, .info-overlay {
+        position: absolute; color: rgba(255,255,255,0.8); font-family: monospace;
+        background: rgba(0,0,0,0.5); padding: 4px 8px; border-radius: 4px; pointer-events: none;
+    }
+    .watermark { top: 10px; left: 10px; font-size: 14px; }
+    .info-overlay { bottom: 10px; right: 10px; font-size: 12px; }
+    
+    .panel-controls {
+        background: var(--glass-bg); padding: 1.5rem;
+        border-radius: 8px; border: none; box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+    .line-list { margin-top: 1.5rem; }
+    .line-item { background: rgba(255,255,255,0.05); padding: 1rem; border-radius: 6px; margin-bottom: 1rem; cursor: pointer; border: 1px solid rgba(255,255,255,0.1); transition: all 0.2s; }
+    .line-item:hover { border-color: var(--pupr-yellow); }
+    .line-item.active { border-color: var(--pupr-yellow); background: rgba(255, 204, 0, 0.1); }
+    .coord-text { font-family: monospace; font-size: 0.85rem; color: var(--text-secondary); }
+    
+    .alert { padding: 1rem; border-radius: 8px; margin-bottom: 1rem; display: none; }
+    .alert-success { background: rgba(16, 185, 129, 0.2); border: 1px solid var(--lancar); color: var(--lancar); }
+    .alert-error { background: rgba(239, 68, 68, 0.2); border: 1px solid var(--macet); color: var(--macet); }
+</style>
+</head>
+<body>
+
+<div class="header-container" style="max-width: 1400px; margin: 0 auto; padding-top: 1rem;">
+    <div>
+        <h2 class="header-title">Admin Panel</h2>
+        <p style="color: var(--text-dark-secondary); margin: 0.5rem 0 0 0;">Kelola sistem dan kalibrasi gerbang.</p>
+    </div>
+    <div style="display: flex; gap: 1rem;">
+        <button onclick="window.location.href='index.html'" class="btn-back">← Dashboard</button>
+        <button onclick="logout()" class="btn-back" style="border-color: rgba(239, 68, 68, 0.3); color: #fca5a5;">Logout</button>
+    </div>
+</div>
+
+<div class="admin-container">
+    <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('log')">Log Aktivitas</button>
+        <button class="tab-btn" onclick="switchTab('kalibrasi')">Kalibrasi Garis Virtual</button>
+    </div>
+    
+    <!-- TAB LOG AKTIVITAS -->
+    <div id="tab-log" class="tab-content active">
+        <div id="error-msg" class="alert alert-error"></div>
+        
+        <table class="log-table" id="log-table" style="display: none;">
+            <thead>
+                <tr>
+                    <th>Waktu</th>
+                    <th>Kategori</th>
+                    <th>Aktor</th>
+                    <th>Gerbang</th>
+                    <th>Deskripsi</th>
+                </tr>
+            </thead>
+            <tbody id="log-body">
+                <!-- Data will be loaded here -->
+            </tbody>
+        </table>
+    </div>
+    
+    <!-- TAB KALIBRASI -->
+    <div id="tab-kalibrasi" class="tab-content">
+        <div class="layout-grid">
+            <!-- Kolom Kiri: Canvas -->
+            <div>
+                <div class="canvas-container glass-panel" style="padding: 0;">
+                    <div id="watermark" class="watermark">2026-01-01 00:00:00</div>
+                    <canvas id="video-canvas" width="960" height="540"></canvas>
+                    <div id="info-overlay" class="info-overlay">Memuat kamera...</div>
+                    
+                    <div id="offline-warning" style="display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 2rem;">
+                        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="var(--macet)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 1rem;"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+                        <h3 style="color: #ffffff; font-family: var(--font-display); margin-top: 0;">Kamera Offline</h3>
+                        <p style="color: #e2e8f0; font-size: 0.95rem; max-width: 400px; margin-bottom: 1.5rem;">Koneksi ke kamera gagal. Pastikan proses AI (Edge Node) untuk gerbang ini sedang berjalan.</p>
+                        <div style="background: rgba(255,255,255,0.1); padding: 1rem; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); display: inline-block;">
+                            <p style="color: #cbd5e1; font-size: 0.85rem; margin: 0 0 0.5rem 0;">Jalankan perintah ini di terminal server:</p>
+                            <code id="start-command" style="color: var(--pupr-yellow); font-family: var(--font-mono); font-size: 0.9rem;">python src/main.py gerbang_a</code>
+                        </div>
+                    </div>
+                </div>
+                <p style="color: var(--text-tertiary); font-size: 0.9rem; margin-top: 0.5rem;">
+                    * Seret ujung garis pada gambar untuk mengubah posisi.
+                </p>
+            </div>
+            
+            <!-- Kolom Kanan: Kontrol -->
+            <div class="panel-controls glass-panel">
+                <h3 class="section-title">Kontrol Gerbang</h3>
+                <div id="alert-box" class="alert"></div>
+                
+                <div class="form-group">
+                    <label>Pilih Gerbang</label>
+                    <select id="gerbang-select" class="form-control">
+                        <option value="gerbang_a">Gerbang A (Padang Basi)</option>
+                        <option value="gerbang_b">Gerbang B (Jembatan Timbang)</option>
+                    </select>
+                </div>
+                
+                <button id="btn-save" class="btn btn-primary">Simpan Konfigurasi Garis</button>
+                <button id="btn-reset" class="btn btn-danger" style="margin-top: 0.5rem;">Reset Data Kendaraan (Hari Ini)</button>
+                
+                <hr style="border-color: var(--glass-border); margin: 2rem 0; opacity: 0.5;">
+                
+                <h3 class="section-title">Daftar Garis</h3>
+                <div id="lines-container" class="line-list">
+                    <div style="text-align: center; color: var(--text-tertiary);">Memuat data kalibrasi...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Pastikan user sudah login
+    requireAuth();
+
+    // -- TAB LOGIC --
+    function switchTab(tabId) {
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+        
+        document.getElementById('tab-' + tabId).classList.add('active');
+        event.currentTarget.classList.add('active');
+        
+        if(tabId === 'kalibrasi' && !kalibrasiLoaded) {
+            initKalibrasi();
+            kalibrasiLoaded = true;
+        }
+    }
+
+    // -- LOG AKTIVITAS LOGIC --
+    document.addEventListener("DOMContentLoaded", async () => {
+        loadLogs();
+    });
+
+    async function loadLogs() {
+        const errMsg = document.getElementById("error-msg");
+        const table = document.getElementById("log-table");
+        const tbody = document.getElementById("log-body");
+        
+        errMsg.style.display = "none";
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;">Memuat...</td></tr>`;
+        table.style.display = "table";
+        
+        try {
+            const res = await apiFetch(`${API_BASE}/api/admin/log-aktivitas`);
+            const json = await res.json();
+            
+            if(!res.ok) throw new Error(json.detail || "Gagal memuat log");
+            
+            tbody.innerHTML = "";
+            if (json.data.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color: var(--text-tertiary);">Tidak ada log aktivitas.</td></tr>`;
+                return;
+            }
+            
+            json.data.forEach(log => {
+                const tr = document.createElement("tr");
+                const time = new Date(log.waktu).toLocaleString("id-ID");
+                let badgeClass = "badge-kalibrasi";
+                if(log.kategori === "reset_counter") badgeClass = "badge-reset_counter";
+                
+                tr.innerHTML = `
+                    <td style="color: var(--text-secondary); font-size: 0.9rem;">${time}</td>
+                    <td><span class="badge ${badgeClass}">${log.kategori}</span></td>
+                    <td><span style="background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px; font-family: var(--font-mono); font-size: 0.8rem;">${log.actor}</span></td>
+                    <td><span style="color: var(--accent-secondary); font-weight: 500;">${log.gerbang_id || '-'}</span></td>
+                    <td style="color: var(--text-primary);">${log.deskripsi}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        } catch(e) {
+            errMsg.textContent = e.message;
+            errMsg.style.display = "block";
+            table.style.display = "none";
+        }
+    }
+
+    // -- KALIBRASI LOGIC --
+    let kalibrasiLoaded = false;
+    let canvas, ctx;
+    let currentLines = [];
+    let bgImage = new Image();
+    let draggingPoint = null;
+    let selectedLineIndex = -1;
+    const colors = ["#ef4444", "#3b82f6", "#10b981", "#f59e0b"]; // merah, biru, hijau, oren
+
+    function initKalibrasi() {
+        canvas = document.getElementById('video-canvas');
+        ctx = canvas.getContext('2d');
+        
+        const select = document.getElementById("gerbang-select");
+        select.addEventListener("change", () => {
+            const gerbangId = select.value;
+            document.getElementById("start-command").textContent = `python src/main.py ${gerbangId}`;
+            loadData(gerbangId);
+        });
+        
+        document.getElementById("btn-save").addEventListener("click", saveKalibrasi);
+        document.getElementById("btn-reset").addEventListener("click", resetCounter);
+        
+        canvas.addEventListener('mousedown', onMouseDown);
+        canvas.addEventListener('mousemove', onMouseMove);
+        canvas.addEventListener('mouseup', onMouseUp);
+        
+        setInterval(updateWatermark, 1000);
+        
+        document.getElementById("start-command").textContent = `python src/main.py ${select.value}`;
+        loadData(select.value);
+    }
+    
+    function updateWatermark() {
+        const now = new Date();
+        const wm = document.getElementById("watermark");
+        if(wm) wm.textContent = now.toISOString().replace('T', ' ').substring(0, 19);
+    }
+    
+    function showAlert(msg, type="success") {
+        const alertBox = document.getElementById("alert-box");
+        alertBox.textContent = msg;
+        alertBox.className = `alert alert-${type}`;
+        alertBox.style.display = "block";
+        setTimeout(() => { alertBox.style.display = "none"; }, 5000);
+    }
+    
+    async function loadData(gerbangId) {
+        const container = document.getElementById("lines-container");
+        container.innerHTML = `<div style="text-align: center; color: var(--text-tertiary);">Memuat...</div>`;
+        document.getElementById("info-overlay").textContent = "Memuat kamera...";
+        document.getElementById("offline-warning").style.display = "none";
+        
+        try {
+            const res = await apiFetch(`${API_BASE}/api/kalibrasi/${gerbangId}`);
+            if(!res.ok) throw new Error("Gagal mengambil data config");
+            const json = await res.json();
+            currentLines = json.lines || [];
+            selectedLineIndex = currentLines.length > 0 ? 0 : -1;
+            renderLinesList();
+            
+            bgImage.onload = () => {
+                document.getElementById("info-overlay").textContent = `${bgImage.width}x${bgImage.height}`;
+                document.getElementById("offline-warning").style.display = "none";
+                drawCanvas();
+            };
+            bgImage.onerror = () => {
+                document.getElementById("info-overlay").textContent = "Kamera Offline";
+                document.getElementById("offline-warning").style.display = "flex";
+                drawCanvas();
+            };
+            
+            const imgRes = await fetch(`${API_BASE}/api/snapshot/${gerbangId}?t=${new Date().getTime()}`);
+            if (imgRes.ok) {
+                const blob = await imgRes.blob();
+                bgImage.src = URL.createObjectURL(blob);
+            } else {
+                throw new Error("Kamera offline");
+            }
+            
+        } catch(e) {
+            console.error(e);
+            container.innerHTML = `<div style="color: var(--macet); text-align: center;">Tidak ada garis terkonfigurasi.</div>`;
+            document.getElementById("offline-warning").style.display = "flex";
+            drawCanvas();
+        }
+    }
+    
+    function renderLinesList() {
+        const container = document.getElementById("lines-container");
+        container.innerHTML = "";
+        
+        if (currentLines.length === 0) {
+            container.innerHTML = `<div style="color: var(--text-tertiary); text-align: center;">Tidak ada garis terkonfigurasi.</div>`;
+            return;
+        }
+        
+        currentLines.forEach((line, idx) => {
+            const t1 = line.garis.titik_1;
+            const t2 = line.garis.titik_2;
+            const color = colors[idx % colors.length];
+            const div = document.createElement("div");
+            div.className = `line-item ${idx === selectedLineIndex ? 'active' : ''}`;
+            div.onclick = () => { selectedLineIndex = idx; renderLinesList(); drawCanvas(); };
+            div.innerHTML = `
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <h4 style="margin:0; color: ${color};">${line.id}</h4>
+                    <span style="font-size:0.8rem; background:rgba(255,255,255,0.1); padding:2px 6px; border-radius:4px;">${line.arah}</span>
+                </div>
+                <div class="coord-text" style="margin-top: 8px;">
+                    T1: [${t1[0]}, ${t1[1]}]<br>
+                    T2: [${t2[0]}, ${t2[1]}]
+                </div>
+            `;
+            container.appendChild(div);
+        });
+        drawCanvas();
+    }
+    
+    function drawCanvas() {
+        if(!ctx) return;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        if (bgImage.complete && bgImage.naturalWidth > 0) {
+            ctx.drawImage(bgImage, 0, 0, canvas.width, canvas.height);
+        } else {
+            ctx.fillStyle = "#111";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = "#444";
+            ctx.font = "20px monospace";
+            ctx.fillText("Tidak ada sinyal video", 350, 270);
+        }
+        
+        currentLines.forEach((line, idx) => {
+            const t1 = line.garis.titik_1;
+            const t2 = line.garis.titik_2;
+            const isSelected = (idx === selectedLineIndex);
+            const color = colors[idx % colors.length];
+            
+            ctx.beginPath();
+            ctx.moveTo(t1[0], t1[1]);
+            ctx.lineTo(t2[0], t2[1]);
+            ctx.strokeStyle = color;
+            ctx.lineWidth = isSelected ? 4 : 2;
+            ctx.stroke();
+            
+            drawPoint(t1[0], t1[1], color, isSelected);
+            drawPoint(t2[0], t2[1], color, isSelected);
+        });
+    }
+    
+    function drawPoint(x, y, color, isSelected) {
+        ctx.beginPath();
+        ctx.arc(x, y, isSelected ? 8 : 5, 0, 2 * Math.PI, false);
+        ctx.fillStyle = color;
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = '#fff';
+        ctx.stroke();
+    }
+    
+    function getMousePos(evt) {
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        return {
+            x: (evt.clientX - rect.left) * scaleX,
+            y: (evt.clientY - rect.top) * scaleY
+        };
+    }
+    
+    function getDistance(p1, p2) {
+        return Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
+    }
+    
+    function onMouseDown(e) {
+        if(selectedLineIndex === -1) return;
+        const pos = getMousePos(e);
+        const line = currentLines[selectedLineIndex];
+        const t1 = {x: line.garis.titik_1[0], y: line.garis.titik_1[1]};
+        const t2 = {x: line.garis.titik_2[0], y: line.garis.titik_2[1]};
+        
+        const HIT_RADIUS = 15;
+        if (getDistance(pos, t1) < HIT_RADIUS) {
+            draggingPoint = { lineIdx: selectedLineIndex, point: 1 };
+        } else if (getDistance(pos, t2) < HIT_RADIUS) {
+            draggingPoint = { lineIdx: selectedLineIndex, point: 2 };
+        }
+    }
+    
+    function onMouseMove(e) {
+        if (!draggingPoint) return;
+        const pos = getMousePos(e);
+        const x = Math.max(0, Math.min(canvas.width, Math.round(pos.x)));
+        const y = Math.max(0, Math.min(canvas.height, Math.round(pos.y)));
+        
+        const line = currentLines[draggingPoint.lineIdx];
+        if (draggingPoint.point === 1) {
+            line.garis.titik_1 = [x, y];
+        } else {
+            line.garis.titik_2 = [x, y];
+        }
+        drawCanvas();
+        renderLinesList(); 
+    }
+    
+    function onMouseUp(e) {
+        draggingPoint = null;
+    }
+    
+    async function saveKalibrasi() {
+        const gerbangId = document.getElementById("gerbang-select").value;
+        
+        const newLines = currentLines.map(line => ({
+            id: line.id,
+            garis: { titik_1: line.garis.titik_1, titik_2: line.garis.titik_2 }
+        }));
+        
+        try {
+            const res = await apiFetch(`${API_BASE}/api/kalibrasi/${gerbangId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ lines: newLines })
+            });
+            const json = await res.json();
+            if(!res.ok) throw new Error(json.detail || "Gagal menyimpan kalibrasi");
+            showAlert("Berhasil: " + json.message, "success");
+            loadLogs(); // Refresh log table
+        } catch(e) {
+            showAlert("Error: " + e.message, "error");
+        }
+    }
+    
+    async function resetCounter() {
+        if(!confirm("Anda yakin ingin mereset counter untuk gerbang ini (hari ini)?")) return;
+        
+        try {
+            const res = await apiFetch(`${API_BASE}/api/admin/reset-total?scope=hari_ini`, {
+                method: 'POST'
+            });
+            const json = await res.json();
+            if(!res.ok) throw new Error(json.detail || "Gagal mereset counter");
+            showAlert(json.pesan, "success");
+            loadLogs(); // Refresh log table
+        } catch(e) {
+            showAlert("Error: " + e.message, "error");
+        }
+    }
+</script>
+</body>
+</html>

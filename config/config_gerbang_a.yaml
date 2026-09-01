@@ -45,34 +45,42 @@ gerbang:
 # 2b. DAFTAR KAMERA AKTIF (multi-node schema)
 # ---------------------------------------------------------------------
 kamera:
-  - id: "gerbang_a"
-    gerbang: "A"
-    aktif: true
-    source_type: "file"           # "file" untuk demo, "rtsp" saat kamera fisik
-    source: "data/videos/test3.mp4"
-    stream_port: 9001
-    rtsp_url: "${GERBANG_A_RTSP_URL}"
-    counting_lines:
-      - id: "lajur_kiri"
-        arah: "masuk"
-        garis:
-          titik_1: [100, 270]
-          titik_2: [300, 270]
-        toleransi_piksel: 8
-        pixel_per_meter: 25.0
-      - id: "lajur_kanan"
-        arah: "keluar"
-        garis:
-          titik_1: [340, 270]
-          titik_2: [540, 270]
-        toleransi_piksel: 8
-        pixel_per_meter: 25.0
-  - id: "gerbang_b"
-    gerbang: "B"
-    aktif: false
-    stream_port: 9002
-    rtsp_url: null
-    counting_lines: []
+- id: "gerbang_a"
+  gerbang: "A"
+  aktif: true
+  source_type: "file"             # "file" untuk demo, "rtsp" saat kamera fisik
+  source: "data/videos/test3.mp4"
+  stream_port: 9001
+  rtsp_url: "${GERBANG_A_RTSP_URL}"
+  counting_lines:
+  - id: "lajur_kiri"
+    arah: "masuk"
+    garis:
+      titik_1:
+      - 174
+      - 336
+      titik_2:
+      - 442
+      - 339
+    toleransi_piksel: 8
+    pixel_per_meter: 25.0
+  - id: "lajur_kanan"
+    arah: "keluar"
+    garis:
+      titik_1:
+      - 514
+      - 333
+      titik_2:
+      - 720
+      - 335
+    toleransi_piksel: 8
+    pixel_per_meter: 25.0
+- id: "gerbang_b"
+  gerbang: "B"
+  aktif: false
+  stream_port: 9002
+  rtsp_url:
+  counting_lines: []
 
 # ---------------------------------------------------------------------
 # 3. VIRTUAL COUNTING LINE — Gerbang A

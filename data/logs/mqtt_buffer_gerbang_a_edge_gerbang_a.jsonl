@@ -1,0 +1,74 @@
+{"topic": "sitinjau_lauik/gerbang_a/agregasi", "payload": "{\"gerbang_id\": \"gerbang_a\", \"timestamp\": 1788260021.2232575, \"counter\": {}}"}
+{"topic": "sitinjau_lauik/gerbang_a/agregasi", "payload": "{\"gerbang_id\": \"gerbang_a\", \"timestamp\": 1788260051.2583418, \"counter\": {}}"}
+{"topic": "sitinjau_lauik/gerbang_a/agregasi", "payload": "{\"gerbang_id\": \"gerbang_a\", \"timestamp\": 1788260081.285767, \"counter\": {}}"}
+{"topic": "sitinjau_lauik/gerbang_a/event", "payload": "{\"gerbang_id\": \"gerbang_a\", \"line_id\": \"lajur_kanan\", \"arah\": \"keluar\", \"kelas\": \"mobil\", \"track_id\": 31, \"timestamp\": 1788260095.3066342}"}
+{"topic": "sitinjau_lauik/gerbang_a/agregasi", "payload": "{\"gerbang_id\": \"gerbang_a\", \"timestamp\": 1788260111.3028462, \"counter\": {\"keluar_mobil\": 1}}"}
+{"topic": "sitinjau_lauik/gerbang_a/event", "payload": "{\"gerbang_id\": \"gerbang_a\", \"line_id\": \"lajur_kiri\", \"arah\": \"masuk\", \"kelas\": \"mobil\", \"track_id\": 60, \"timestamp\": 1788260135.1027699}"}
+{"topic": "sitinjau_lauik/gerbang_a/agregasi", "payload": "{\"gerbang_id\": \"gerbang_a\", \"timestamp\": 1788260141.3510685, \"counter\": {\"masuk_mobil\": 1}}"}
+{"topic": "sitinjau_lauik/gerbang_a/agregasi", "payload": "{\"gerbang_id\": \"gerbang_a\", \"timestamp\": 1788260171.369924, \"counter\": {}}"}
+{"topic": "sitinjau_lauik/gerbang_a/event", "payload": "{\"gerbang_id\": \"gerbang_a\", \"line_id\": \"lajur_kiri\", \"arah\": \"masuk\", \"kelas\": \"mobil\", \"track_id\": 49, \"timestamp\": 1788260180.3885834}"}
+{"topic": "sitinjau_lauik/gerbang_a/event", "payload": "{\"gerbang_id\": \"gerbang_a\", \"line_id\": \"lajur_kiri\", \"arah\": \"masuk\", \"kelas\": \"mobil\", \"track_id\": 43, \"timestamp\": 1788260198.7277462}"}
+{"topic": "sitinjau_lauik/gerbang_a/agregasi", "payload": "{\"gerbang_id\": \"gerbang_a\", \"timestamp\": 1788260201.4346278, \"counter\": {\"masuk_mobil\": 2}}"}
+{"topic": "sitinjau_lauik/gerbang_a/agregasi", "payload": "{\"gerbang_id\": \"gerbang_a\", \"timestamp\": 1788260231.481656, \"counter\": {}}"}
+{"topic": "sitinjau_lauik/gerbang_a/event", "payload": "{\"gerbang_id\": \"gerbang_a\", \"line_id\": \"lajur_kiri\", \"arah\": \"masuk\", \"kelas\": \"mobil\", \"track_id\": 37, \"timestamp\": 1788260250.4243553}"}
+{"topic": "sitinjau_lauik/gerbang_a/agregasi", "payload": "{\"gerbang_id\": \"gerbang_a\", \"timestamp\": 1788260261.5032077, \"counter\": {\"masuk_mobil\": 1}}"}
+{"topic": "sitinjau_lauik/gerbang_a/event", "payload": "{\"gerbang_id\": \"gerbang_a\", \"line_id\": \"lajur_kiri\", \"arah\": \"masuk\", \"kelas\": \"mobil\", \"track_id\": 5, \"timestamp\": 1788260273.6487625}"}
+{"topic": "sitinjau_lauik/gerbang_a/event", "payload": "{\"gerbang_id\": \"gerbang_a\", \"line_id\": \"lajur_kiri\", \"arah\": \"masuk\", \"kelas\": \"mobil\", \"track_id\": 30, \"timestamp\": 1788260277.815752}"}
+{"topic": "sitinjau_lauik/gerbang_a/event", "payload": "{\"gerbang_id\": \"gerbang_a\", \"line_id\": \"lajur_kiri\", \"arah\": \"masuk\", \"kelas\": \"mobil\", \"track_id\": 28, \"timestamp\": 1788260280.3699439}"}
+{"topic": "sitinjau_lauik/gerbang_a/event", "payload": "{\"gerbang_id\": \"gerbang_a\", \"line_id\": \"lajur_kiri\", \"arah\": \"masuk\", \"kelas\": \"mobil\", \"track_id\": 31, \"timestamp\": 1788260283.0074985}"}
+{"topic": "sitinjau_lauik/gerbang_a/event", "payload": "{\"gerbang_id\": \"gerbang_a\", \"line_id\": \"lajur_kiri\", \"arah\": \"masuk\", \"kelas\": \"mobil\", \"track_id\": 28, \"timestamp\": 1788260288.0379074}"}
+{"topic": "sitinjau_lauik/gerbang_a/agregasi", "payload": "{\"gerbang_id\": \"gerbang_a\", \"timestamp\": 1788260291.6114252, \"counter\": {\"masuk_mobil\": 5}}"}
+{"topic": "sitinjau_lauik/gerbang_a/event", "payload": "{\"gerbang_id\": \"gerbang_a\", \"line_id\": \"lajur_kiri\", \"arah\": \"masuk\", \"kelas\": \"mobil\", \"track_id\": 20, \"timestamp\": 1788260298.0107725}"}
+{"topic": "sitinjau_lauik/gerbang_a/agregasi", "payload": "{\"gerbang_id\": \"gerbang_a\", \"timestamp\": 1788260321.7320926, \"counter\": {\"masuk_mobil\": 1}}"}
+{"topic": "sitinjau_lauik/gerbang_a/event", "payload": "{\"gerbang_id\": \"gerbang_a\", \"line_id\": \"lajur_kiri\", \"arah\": \"masuk\", \"kelas\": \"mobil\", \"track_id\": 5, \"timestamp\": 1788260324.1544254}"}
+{"topic": "sitinjau_lauik/gerbang_a/event", "payload": "{\"gerbang_id\": \"gerbang_a\", \"line_id\": \"lajur_kiri\", \"arah\": \"masuk\", \"kelas\": \"mobil\", \"track_id\": 33, \"timestamp\": 1788260335.1133978}"}
+{"topic": "sitinjau_lauik/gerbang_a/event", "payload": "{\"gerbang_id\": \"gerbang_a\", \"line_id\": \"lajur_kiri\", \"arah\": \"masuk\", \"kelas\": \"mobil\", \"track_id\": 19, \"timestamp\": 1788260340.6437848}"}
+{"topic": "sitinjau_lauik/gerbang_a/event", "payload": "{\"gerbang_id\": \"gerbang_a\", \"line_id\": \"lajur_kiri\", \"arah\": \"masuk\", \"kelas\": \"mobil\", \"track_id\": 31, \"timestamp\": 1788260347.2176454}"}
+{"topic": "sitinjau_lauik/gerbang_a/agregasi", "payload": "{\"gerbang_id\": \"gerbang_a\", \"timestamp\": 1788260351.9134238, \"counter\": {\"masuk_mobil\": 4}}"}
+{"topic": "sitinjau_lauik/gerbang_a/event", "payload": "{\"gerbang_id\": \"gerbang_a\", \"line_id\": \"lajur_kiri\", \"arah\": \"masuk\", \"kelas\": \"mobil\", \"track_id\": 27, \"timestamp\": 1788260353.461322}"}
+{"topic": "sitinjau_lauik/gerbang_a/agregasi", "payload": "{\"gerbang_id\": \"gerbang_a\", \"timestamp\": 1788260381.997674, \"counter\": {\"masuk_mobil\": 1}}"}
+{"topic": "sitinjau_lauik/gerbang_a/agregasi", "payload": "{\"gerbang_id\": \"gerbang_a\", \"timestamp\": 1788260412.092962, \"counter\": {}}"}
+{"topic": "sitinjau_lauik/gerbang_a/agregasi", "payload": "{\"gerbang_id\": \"gerbang_a\", \"timestamp\": 1788260442.33615, \"counter\": {}}"}
+{"topic": "sitinjau_lauik/gerbang_a/agregasi", "payload": "{\"gerbang_id\": \"gerbang_a\", \"timestamp\": 1788260472.455402, \"counter\": {}}"}
+{"topic": "sitinjau_lauik/gerbang_a/agregasi", "payload": "{\"gerbang_id\": \"gerbang_a\", \"timestamp\": 1788260502.5633745, \"counter\": {}}"}
+{"topic": "sitinjau_lauik/gerbang_a/agregasi", "payload": "{\"gerbang_id\": \"gerbang_a\", \"timestamp\": 1788260532.7534144, \"counter\": {}}"}
+{"topic": "sitinjau_lauik/gerbang_a/agregasi", "payload": "{\"gerbang_id\": \"gerbang_a\", \"timestamp\": 1788260562.7612267, \"counter\": {}}"}
+{"topic": "sitinjau_lauik/gerbang_a/agregasi", "payload": "{\"gerbang_id\": \"gerbang_a\", \"timestamp\": 1788260592.8982372, \"counter\": {}}"}
+{"topic": "sitinjau_lauik/gerbang_a/agregasi", "payload": "{\"gerbang_id\": \"gerbang_a\", \"timestamp\": 1788260623.0057716, \"counter\": {}}"}
+{"topic": "sitinjau_lauik/gerbang_a/agregasi", "payload": "{\"gerbang_id\": \"gerbang_a\", \"timestamp\": 1788260653.2742007, \"counter\": {}}"}
+{"topic": "sitinjau_lauik/gerbang_a/agregasi", "payload": "{\"gerbang_id\": \"gerbang_a\", \"timestamp\": 1788260683.347966, \"counter\": {}}"}
+{"topic": "sitinjau_lauik/gerbang_a/agregasi", "payload": "{\"gerbang_id\": \"gerbang_a\", \"timestamp\": 1788260713.4581456, \"counter\": {}}"}
+{"topic": "sitinjau_lauik/gerbang_a/agregasi", "payload": "{\"gerbang_id\": \"gerbang_a\", \"timestamp\": 1788260743.4611163, \"counter\": {}}"}
+{"topic": "sitinjau_lauik/gerbang_a/agregasi", "payload": "{\"gerbang_id\": \"gerbang_a\", \"timestamp\": 1788260773.6295602, \"counter\": {}}"}
+{"topic": "sitinjau_lauik/gerbang_a/agregasi", "payload": "{\"gerbang_id\": \"gerbang_a\", \"timestamp\": 1788260803.8690684, \"counter\": {}}"}
+{"topic": "sitinjau_lauik/gerbang_a/agregasi", "payload": "{\"gerbang_id\": \"gerbang_a\", \"timestamp\": 1788260833.9763765, \"counter\": {}}"}
+{"topic": "sitinjau_lauik/gerbang_a/agregasi", "payload": "{\"gerbang_id\": \"gerbang_a\", \"timestamp\": 1788260864.0573297, \"counter\": {}}"}
+{"topic": "sitinjau_lauik/gerbang_a/event", "payload": "{\"gerbang_id\": \"gerbang_a\", \"line_id\": \"lajur_kiri\", \"arah\": \"masuk\", \"kelas\": \"mobil\", \"track_id\": 3, \"timestamp\": 1788260885.1000545}"}
+{"topic": "sitinjau_lauik/gerbang_a/agregasi", "payload": "{\"gerbang_id\": \"gerbang_a\", \"timestamp\": 1788260894.0663013, \"counter\": {\"masuk_mobil\": 1}}"}
+{"topic": "sitinjau_lauik/gerbang_a/agregasi", "payload": "{\"gerbang_id\": \"gerbang_a\", \"timestamp\": 1788260924.563809, \"counter\": {}}"}
+{"topic": "sitinjau_lauik/gerbang_a/agregasi", "payload": "{\"gerbang_id\": \"gerbang_a\", \"timestamp\": 1788260954.5917184, \"counter\": {}}"}
+{"topic": "sitinjau_lauik/gerbang_a/agregasi", "payload": "{\"gerbang_id\": \"gerbang_a\", \"timestamp\": 1788260984.6649156, \"counter\": {}}"}
+{"topic": "sitinjau_lauik/gerbang_a/agregasi", "payload": "{\"gerbang_id\": \"gerbang_a\", \"timestamp\": 1788261015.029804, \"counter\": {}}"}
+{"topic": "sitinjau_lauik/gerbang_a/agregasi", "payload": "{\"gerbang_id\": \"gerbang_a\", \"timestamp\": 1788261045.8576522, \"counter\": {}}"}
+{"topic": "sitinjau_lauik/gerbang_a/agregasi", "payload": "{\"gerbang_id\": \"gerbang_a\", \"timestamp\": 1788261077.020332, \"counter\": {}}"}
+{"topic": "sitinjau_lauik/gerbang_a/agregasi", "payload": "{\"gerbang_id\": \"gerbang_a\", \"timestamp\": 1788261107.1786177, \"counter\": {}}"}
+{"topic": "sitinjau_lauik/gerbang_a/agregasi", "payload": "{\"gerbang_id\": \"gerbang_a\", \"timestamp\": 1788261138.258688, \"counter\": {}}"}
+{"topic": "sitinjau_lauik/gerbang_a/agregasi", "payload": "{\"gerbang_id\": \"gerbang_a\", \"timestamp\": 1788261168.303207, \"counter\": {}}"}
+{"topic": "sitinjau_lauik/gerbang_a/agregasi", "payload": "{\"gerbang_id\": \"gerbang_a\", \"timestamp\": 1788261198.5384433, \"counter\": {}}"}
+{"topic": "sitinjau_lauik/gerbang_a/agregasi", "payload": "{\"gerbang_id\": \"gerbang_a\", \"timestamp\": 1788261228.8983634, \"counter\": {}}"}
+{"topic": "sitinjau_lauik/gerbang_a/agregasi", "payload": "{\"gerbang_id\": \"gerbang_a\", \"timestamp\": 1788261259.0193803, \"counter\": {}}"}
+{"topic": "sitinjau_lauik/gerbang_a/agregasi", "payload": "{\"gerbang_id\": \"gerbang_a\", \"timestamp\": 1788261289.204299, \"counter\": {}}"}
+{"topic": "sitinjau_lauik/gerbang_a/agregasi", "payload": "{\"gerbang_id\": \"gerbang_a\", \"timestamp\": 1788261319.6534436, \"counter\": {}}"}
+{"topic": "sitinjau_lauik/gerbang_a/agregasi", "payload": "{\"gerbang_id\": \"gerbang_a\", \"timestamp\": 1788261350.1945825, \"counter\": {}}"}
+{"topic": "sitinjau_lauik/gerbang_a/agregasi", "payload": "{\"gerbang_id\": \"gerbang_a\", \"timestamp\": 1788261380.5799248, \"counter\": {}}"}
+{"topic": "sitinjau_lauik/gerbang_a/agregasi", "payload": "{\"gerbang_id\": \"gerbang_a\", \"timestamp\": 1788261411.1608496, \"counter\": {}}"}
+{"topic": "sitinjau_lauik/gerbang_a/agregasi", "payload": "{\"gerbang_id\": \"gerbang_a\", \"timestamp\": 1788261441.8505945, \"counter\": {}}"}
+{"topic": "sitinjau_lauik/gerbang_a/agregasi", "payload": "{\"gerbang_id\": \"gerbang_a\", \"timestamp\": 1788261471.859622, \"counter\": {}}"}
+{"topic": "sitinjau_lauik/gerbang_a/agregasi", "payload": "{\"gerbang_id\": \"gerbang_a\", \"timestamp\": 1788261502.2032099, \"counter\": {}}"}
+{"topic": "sitinjau_lauik/gerbang_a/event", "payload": "{\"gerbang_id\": \"gerbang_a\", \"line_id\": \"lajur_kiri\", \"arah\": \"masuk\", \"kelas\": \"mobil\", \"track_id\": 10, \"timestamp\": 1788261527.1646516}"}
+{"topic": "sitinjau_lauik/gerbang_a/agregasi", "payload": "{\"gerbang_id\": \"gerbang_a\", \"timestamp\": 1788261532.5499434, \"counter\": {\"masuk_mobil\": 1}}"}
+{"topic": "sitinjau_lauik/gerbang_a/agregasi", "payload": "{\"gerbang_id\": \"gerbang_a\", \"timestamp\": 1788261563.7772942, \"counter\": {}}"}
+{"topic": "sitinjau_lauik/gerbang_a/agregasi", "payload": "{\"gerbang_id\": \"gerbang_a\", \"timestamp\": 1788261593.841314, \"counter\": {}}"}
+{"topic": "sitinjau_lauik/gerbang_a/agregasi", "payload": "{\"gerbang_id\": \"gerbang_a\", \"timestamp\": 1788261624.4254684, \"counter\": {}}"}
+{"topic": "sitinjau_lauik/gerbang_a/event", "payload": "{\"gerbang_id\": \"gerbang_a\", \"line_id\": \"lajur_kanan\", \"arah\": \"keluar\", \"kelas\": \"mobil\", \"track_id\": 5, \"timestamp\": 1788261652.9238863}"}
+{"topic": "sitinjau_lauik/gerbang_a/agregasi", "payload": "{\"gerbang_id\": \"gerbang_a\", \"timestamp\": 1788261654.7496974, \"counter\": {\"keluar_mobil\": 1}}"}

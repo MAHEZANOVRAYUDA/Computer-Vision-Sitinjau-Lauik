@@ -28,6 +28,7 @@ Perbaikan v3 (Blueprint Perbaikan):
 
 import asyncio
 import os
+from typing import Optional
 import sys
 import re
 import yaml
@@ -43,10 +44,13 @@ _ROOT = Path(__file__).resolve().parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from fastapi import FastAPI, Header, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Header, HTTPException, WebSocket, WebSocketDisconnect, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 from src.config_loader import load_config
 from src.database import Database
@@ -127,7 +131,9 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Sitinjau Lauik Traffic API", lifespan=lifespan)
-
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 def _cors_origins() -> list:
     raw = os.environ.get("CORS_ORIGINS") or config.get("api.cors_origins")
@@ -166,7 +172,7 @@ def _require_api_key(x_api_key: str = Header(default="", alias="X-API-Key")):
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins(),
-    allow_methods=["GET", "OPTIONS"],
+    allow_methods=["*"],
     allow_headers=["*"],
 )
 
@@ -251,6 +257,21 @@ async def _ws_broadcast_loop():
 # -----------------------------------------------------------------------
 # HTTP Endpoints
 # -----------------------------------------------------------------------
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+@app.post("/api/login")
+def login(req: LoginRequest):
+    """Verifikasi username/password dan kembalikan API Key."""
+    expected_user = (os.environ.get("ADMIN_USERNAME") or "admin").strip()
+    expected_pass = (os.environ.get("ADMIN_PASSWORD") or "admin123").strip()
+    
+    if req.username.strip() == expected_user and req.password.strip() == expected_pass:
+        return {"status": "success", "token": _expected_api_key()}
+    else:
+        raise HTTPException(status_code=401, detail="Username atau password salah")
 
 @app.get("/api/status-terkini")
 def status_terkini():
@@ -386,7 +407,8 @@ def health_check():
 
 
 @app.get("/api/export/riwayat")
-def export_riwayat(jam: int = 24, x_api_key: str = Header(default="", alias="X-API-Key")):
+@limiter.limit("10/minute")
+def export_riwayat(request: Request, jam: int = 24, x_api_key: str = Header(default="", alias="X-API-Key")):
     """Endpoint sensitif: ekspor riwayat. Wajib header X-API-Key jika API_KEY di-set."""
     _require_api_key(x_api_key)
     data = db.ambil_riwayat_status(jam_terakhir=jam)
@@ -430,7 +452,8 @@ def get_kalibrasi(gerbang_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/kalibrasi/{gerbang_id}")
-def update_kalibrasi(gerbang_id: str, payload: KalibrasiPayload, x_api_key: str = Header(default="", alias="X-API-Key")):
+@limiter.limit("10/minute")
+def update_kalibrasi(request: Request, gerbang_id: str, payload: KalibrasiPayload, x_api_key: str = Header(default="", alias="X-API-Key")):
     """Menyimpan koordinat garis counting baru ke config."""
     _require_api_key(x_api_key)
     
@@ -438,51 +461,117 @@ def update_kalibrasi(gerbang_id: str, payload: KalibrasiPayload, x_api_key: str 
     if not config_file.exists():
         raise HTTPException(status_code=404, detail="Config gerbang tidak ditemukan")
         
-    with open(config_file, "r") as f:
-        content = f.read()
-        
-    lines = content.splitlines()
-    current_id = None
-    in_garis = False
+    from ruamel.yaml import YAML
+    yaml = YAML()
+    yaml.preserve_quotes = True
     
-    for i, line in enumerate(lines):
-        id_match = re.search(r'^\s*-\s*id:\s*["\']?(.*?)["\']?\s*$', line)
-        if id_match:
-            current_id = id_match.group(1)
-            in_garis = False
-            continue
-            
-        garis_match = re.search(r'^\s*garis:\s*$', line)
-        if garis_match:
-            in_garis = True
-            continue
-            
-        if in_garis and current_id:
-            t1_match = re.search(r'^(\s*titik_1:\s*\[).*?(\].*)$', line)
-            if t1_match:
-                for l in payload.lines:
-                    if l.id == current_id:
-                        lines[i] = f"{t1_match.group(1)}{l.garis.titik_1[0]}, {l.garis.titik_1[1]}{t1_match.group(2)}"
-            
-            t2_match = re.search(r'^(\s*titik_2:\s*\[).*?(\].*)$', line)
-            if t2_match:
-                for l in payload.lines:
-                    if l.id == current_id:
-                        lines[i] = f"{t2_match.group(1)}{l.garis.titik_2[0]}, {l.garis.titik_2[1]}{t2_match.group(2)}"
+    with open(config_file, "r") as f:
+        data = yaml.load(f)
+        
+    kamera_list = data.get("kamera", [])
+    for k in kamera_list:
+        if k.get("id") == gerbang_id:
+            counting_lines = k.get("counting_lines", [])
+            for line in counting_lines:
+                for req_line in payload.lines:
+                    if line.get("id") == req_line.id:
+                        if "garis" not in line:
+                            line["garis"] = {}
+                        line["garis"]["titik_1"] = list(req_line.garis.titik_1)
+                        line["garis"]["titik_2"] = list(req_line.garis.titik_2)
                         
-    new_content = "\n".join(lines) + "\n"
     with open(config_file, "w") as f:
-        f.write(new_content)
+        yaml.dump(data, f)
+        
+    # Panggil catat_aktivitas() -> TODO di Tahap 2
+    try:
+        db.catat_aktivitas(
+            kategori="kalibrasi",
+            deskripsi=f"Kalibrasi garis diubah untuk {gerbang_id}",
+            actor="admin"
+        )
+    except Exception:
+        pass
         
     return {"status": "success", "message": "Konfigurasi garis tersimpan"}
 
-@app.post("/api/kalibrasi/{gerbang_id}/reset-counter")
-def reset_counter(gerbang_id: str, x_api_key: str = Header(default="", alias="X-API-Key")):
-    """Reset counter untuk gerbang (sekarang manual via petunjuk)."""
-    _require_api_key(x_api_key)
-    return {"message": "Fitur hot-reload belum aktif. Silakan restart proses edge (main.py) secara manual untuk menerapkan konfigurasi baru."}
+@app.get("/api/snapshot/{gerbang_id}")
+def get_snapshot(gerbang_id: str):
+    """Proxy mengambil snapshot frame dari edge."""
+    stream_port = None
+    kamera_list = config.get("kamera", [])
+    for k in kamera_list:
+        if k.get("id") == gerbang_id:
+            stream_port = k.get("stream_port")
+            break
+            
+    if not stream_port:
+        raise HTTPException(status_code=404, detail="Kamera tidak memiliki stream_port")
+        
+    import urllib.request
+    from fastapi.responses import Response
+    try:
+        req = urllib.request.Request(f"http://localhost:{stream_port}/snapshot")
+        with urllib.request.urlopen(req, timeout=2.0) as res:
+            return Response(content=res.read(), media_type="image/jpeg")
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Edge server tidak merespon (pastikan main.py gerbang ini berjalan): {e}")
 
-# -----------------------------------------------------------------------
+@app.post("/api/admin/reset-total")
+@limiter.limit("10/minute")
+def reset_total(request: Request, scope: str = "hari_ini", x_api_key: str = Header(default="", alias="X-API-Key")):
+    """Reset counter untuk gerbang (manual via MQTT command)."""
+    _require_api_key(x_api_key)
+    
+    if scope not in ("hari_ini", "semua"):
+        raise HTTPException(status_code=400, detail="Scope harus 'hari_ini' atau 'semua'")
+        
+    try:
+        if scope == "hari_ini":
+            db.eksekusi("DELETE FROM hitungan_kendaraan WHERE timestamp_interval >= CURRENT_DATE", fetch=False)
+            db.eksekusi("DELETE FROM status_ruas WHERE timestamp_hitung >= CURRENT_DATE", fetch=False)
+        elif scope == "semua":
+            db.eksekusi("TRUNCATE hitungan_kendaraan, status_ruas", fetch=False)
+            
+        import paho.mqtt.publish as publish
+        import json
+        host = config.get("mqtt.broker_host", "localhost")
+        port = config.get("mqtt.broker_port", 1883)
+        prefix = config.get("mqtt.topic_prefix", "sitinjau_lauik")
+        publish.single(f"{prefix}/command/reset", payload=json.dumps({"scope": scope}), hostname=host, port=port)
+        
+        # Panggil catat_aktivitas() -> TODO di Tahap 2
+        try:
+            db.catat_aktivitas(
+                kategori="reset_counter",
+                deskripsi=f"Reset data dengan scope: {scope}",
+                actor="admin"
+            )
+        except Exception:
+            pass
+            
+        return {"status": "sukses", "pesan": f"Semua data {'hari ini' if scope == 'hari_ini' else 'histori'} dan counter in-memory telah direset ke 0."}
+    except Exception as e:
+        logger.error(f"Gagal reset data: {e}")
+        raise HTTPException(status_code=500, detail="Gagal melakukan reset")
+
+@app.get("/api/admin/log-aktivitas")
+def get_log_aktivitas(
+    request: Request,
+    kategori: Optional[str] = None,
+    limit: int = 50,
+    offset: int = 0,
+    x_api_key: str = Header(default="", alias="X-API-Key")
+):
+    """Melihat log aktivitas admin."""
+    _require_api_key(x_api_key)
+    try:
+        logs = db.ambil_log_aktivitas(limit=limit, offset=offset, kategori=kategori)
+        return {"status": "success", "data": logs}
+    except Exception as e:
+        logger.error(f"Gagal mengambil log: {e}")
+        raise HTTPException(status_code=500, detail="Gagal mengambil log aktivitas")
+
 # WebSocket Endpoint
 # -----------------------------------------------------------------------
 

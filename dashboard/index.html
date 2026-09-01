@@ -12,67 +12,24 @@
 <script src="/vendor/chart.umd.min.js"></script>
 <script defer src="/vendor/alpine.min.js"></script>
 <style>
+  /* Base styles inherited from shared.css */
   :root {
-    --bg-base: #f8fafc; /* White/Light gray */
-    --glass-bg: #003366; /* Solid Navy Blue */
-    --glass-border: #FFCC00; /* Yellow Border */
-    --text-primary: #ffffff; /* White text on Navy cards */
-    --text-secondary: #bae6fd; /* Light blue secondary text */
-    --text-tertiary: #e0f2fe; /* Lighter blue tertiary text */
-    --lancar: #10b981;
-    --padat: #f59e0b;
-    --macet: #ef4444;
-    --accent: #FFCC00; /* Yellow */
     --accent-glow: rgba(255, 204, 0, 0.4);
-    --mono: "JetBrains Mono", "Courier New", monospace;
   }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
-  body {
-    background: var(--bg-base);
-    color: #003366; /* Navy text on white background */
-    font-family: "Inter", sans-serif;
-    min-height: 100vh;
-    padding: 2rem;
-  }
-
   h1, h2, h3 { font-family: "Outfit", sans-serif; }
-
-  .glass-panel {
-    background: var(--glass-bg);
-    color: var(--text-primary);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border: 1px solid var(--glass-border);
-    border-radius: 16px;
-    padding: 1.5rem;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-  }
-
-  header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 2rem;
-    flex-wrap: wrap;
-    gap: 1rem;
-    background-color: var(--accent); /* Yellow */
-    padding: 1.5rem 2rem;
-    border-radius: 12px;
-    color: #003366; /* Navy text on yellow */
-    box-shadow: 0 4px 20px rgba(255, 204, 0, 0.2);
-  }
 
   .header-titles h1 {
     font-size: 2rem;
     font-weight: 800;
-    color: #003366;
+    margin: 0;
+    color: var(--text-dark-primary);
   }
 
   .subtitle {
-    color: #003366;
-    opacity: 0.8;
+    color: var(--text-dark-secondary);
     font-size: 0.95rem;
     margin-top: 0.25rem;
   }
@@ -82,28 +39,28 @@
     display: inline-flex;
     align-items: center;
     gap: 0.4rem;
-    background: #003366; /* Navy */
-    border: 1px solid #001A33;
-    color: #ffffff; /* White text on navy */
+    background: var(--pupr-navy);
+    border: none;
+    color: var(--text-primary);
     padding: 0.25rem 0.75rem;
-    border-radius: 999px;
+    border-radius: 6px;
     font-size: 0.75rem;
     font-weight: 700;
     letter-spacing: 1px;
     margin-top: 0.75rem;
   }
 
-  .mode-badge.prototipe { border-color: #001A33; color: #FFCC00; background: #003366; }
-  .mode-badge.penuh { border-color: #001A33; color: #10b981; background: #003366; }
+  .mode-badge.prototipe { border-color: rgba(255, 204, 0, 0.5); color: var(--pupr-yellow); background: rgba(255, 204, 0, 0.15); }
+  .mode-badge.penuh { border-color: rgba(16, 185, 129, 0.3); color: var(--lancar); background: rgba(16, 185, 129, 0.15); }
 
-  .header-status { text-align: right; }
+  .header-status { text-align: right; display: flex; flex-direction: column; align-items: flex-end; }
 
   .clock {
-    font-family: var(--mono);
-    font-size: 1.1rem;
-    color: #003366;
-    font-weight: 600;
-    margin-top: 0.25rem;
+    font-family: var(--font-mono);
+    font-size: 1.25rem;
+    color: var(--text-dark-primary);
+    font-weight: 800;
+    margin-top: 0.5rem;
   }
 
   /* Koneksi status badge */
@@ -112,7 +69,7 @@
     align-items: center;
     gap: 0.5rem;
     font-size: 0.85rem;
-    color: #003366;
+    color: var(--pupr-navy);
     font-weight: 600;
   }
 
@@ -132,19 +89,19 @@
 
   .ws-error-banner {
     display: none;
-    background: rgba(245, 158, 11, 0.2);
-    border: 1px solid #f59e0b;
+    background: rgba(245, 158, 11, 0.1);
+    border: 1px solid rgba(245, 158, 11, 0.3);
     border-radius: 8px;
     padding: 0.6rem 1rem;
     font-size: 0.85rem;
-    color: #fde68a;
+    color: #fcd34d;
     margin-bottom: 1rem;
   }
   .ws-error-banner.show { display: block; }
 
   @media (max-width: 768px) {
     body { padding: 0.75rem; }
-    header { padding: 1rem; }
+    .header-yellow { padding: 1rem !important; }
     .header-titles h1 { font-size: 1.35rem; }
     .header-status { text-align: left; }
     .metrics-grid { grid-template-columns: 1fr; }
@@ -258,17 +215,17 @@
   .metric-card {
     position: relative;
     overflow: hidden;
-    background: rgba(0,0,0,0.2);
-    border: 1px solid var(--glass-border);
-    border-radius: 12px;
+    background: var(--glass-bg);
+    border: none;
+    border-radius: 8px;
     padding: 1.25rem;
     transition: transform 0.2s, box-shadow 0.2s;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
   }
 
   .metric-card:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
-    border-color: rgba(255,255,255,0.15);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.2);
   }
 
   .metric-title {
@@ -296,21 +253,22 @@
   @media (max-width: 768px) { .kendaraan-grid { grid-template-columns: repeat(2, 1fr); } }
 
   .veh-card {
-    background: linear-gradient(145deg, rgba(255,255,255,0.05) 0%, rgba(0,0,0,0.2) 100%);
-    border: 1px solid var(--glass-border);
-    border-radius: 12px;
+    background: var(--glass-bg);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 8px;
     padding: 1rem;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    transition: transform 0.15s;
+    transition: transform 0.15s, box-shadow 0.15s;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
   }
-  .veh-card:hover { transform: translateY(-2px); }
+  .veh-card:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,0,0,0.2); }
 
-  .veh-icon { font-size: 1.5rem; color: #ffffff; opacity: 1; }
+  .veh-icon { font-size: 1.5rem; color: var(--text-primary); opacity: 1; }
   .veh-info { text-align: right; }
-  .veh-label { font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; }
-  .veh-count { font-family: var(--mono); font-size: 1.25rem; font-weight: 700; color: #fff; }
+  .veh-label { font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; font-weight: bold; }
+  .veh-count { font-family: var(--font-mono); font-size: 1.25rem; font-weight: 700; color: var(--text-primary); }
 
   /* Chart Container */
   .chart-container {
@@ -388,19 +346,18 @@
     margin-top: 0.35rem;
   }
 
-  /* Refresh button */
   .btn-refresh {
-    background: rgba(59,130,246,0.15);
-    border: 1px solid var(--accent);
-    color: #60a5fa;
-    padding: 0.35rem 0.85rem;
-    border-radius: 8px;
+    background: transparent;
+    border: 1px solid rgba(255,255,255,0.3);
+    color: var(--text-primary);
+    padding: 0.4rem 0.85rem;
+    border-radius: 6px;
     font-size: 0.8rem;
     cursor: pointer;
-    transition: background 0.2s;
+    transition: background 0.2s, border-color 0.2s;
     font-family: "Inter", sans-serif;
   }
-  .btn-refresh:hover { background: rgba(59,130,246,0.3); }
+  .btn-refresh:hover { background: rgba(255,255,255,0.1); border-color: #fff; }
 
   /* Data terakhir */
   .last-update {
@@ -413,7 +370,7 @@
 </head>
 <body x-data="{ wsDown: false }" @ws-down.window="wsDown = true" @ws-up.window="wsDown = false">
 
-<header>
+<header class="header-yellow" style="background: var(--pupr-yellow); border-radius: 12px; margin-bottom: 1.5rem; padding: 1.5rem 2rem; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 15px rgba(0,0,0,0.05); flex-wrap: wrap; gap: 1rem;">
   <div style="display: flex; align-items: center; gap: 1rem;">
     <img src="PU1.png" alt="PUPR Logo" class="logo" style="height:56px;" />
     <img src="logo-upi-yptk-F_UF5IRd.png" alt="UPI YPTK Logo" class="logo" style="height:56px;" />
@@ -490,7 +447,7 @@
     <!-- Navigasi Kamera -->
     <div class="glass-panel" style="margin-bottom: 1.5rem;">
       <div class="section-title">Live Camera Feeds</div>
-      <div style="display: flex; gap: 1rem; flex-wrap: wrap;" id="camera-buttons">
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;" id="camera-buttons">
         <!-- Diisi dinamis oleh JavaScript -->
         <div style="color: var(--text-tertiary); font-size: 0.85rem; padding: 1rem;">Memuat data gerbang...</div>
       </div>
@@ -526,7 +483,7 @@
     <!-- Kendaraan Per Jenis (Hari Ini) -->
     <div class="glass-panel" style="margin-bottom: 1.5rem;">
       <div class="section-title">Kendaraan Per Jenis (Hari Ini)</div>
-      <div style="font-size: 1.1rem; font-weight: 700; margin-bottom: 1rem; color: #fff;" id="total-masuk-hari-ini">Total Masuk Hari Ini: 0</div>
+      <div style="font-size: 1.1rem; font-weight: 700; margin-bottom: 1rem; color: var(--text-primary);" id="total-masuk-hari-ini">Total Masuk Hari Ini: 0</div>
       <div class="kendaraan-grid">
         <div class="veh-card">
           <div class="veh-icon" style="font-size:0;">
@@ -575,7 +532,7 @@
         Primer: rasio kepadatan occupancy | Sekunder: V/C MKJI (indikatif, gradien 20–26% di luar cakupan normal)
       </div>
       <div class="chart-container" style="position: relative;">
-        <div id="chart-placeholder" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; z-index: 10; color: rgba(255, 255, 255, 0.6); font-size: 0.9rem; font-style: italic; pointer-events: none;">
+        <div id="chart-placeholder" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; z-index: 10; color: var(--text-tertiary); font-size: 0.9rem; font-style: italic; pointer-events: none;">
           Mengumpulkan histori data...
         </div>
         <canvas id="trendChart"></canvas>
@@ -609,7 +566,7 @@
   // ================================================================
   function initChart() {
     const ctx = document.getElementById("trendChart").getContext("2d");
-    Chart.defaults.color = "#94a3b8";
+    Chart.defaults.color = "#334155";
     Chart.defaults.font.family = "Inter";
 
     trendChart = new Chart(ctx, {
@@ -1011,9 +968,21 @@
           const idGerbangParam = g.id_gerbang.split('_')[1] || g.id_gerbang;
           
           if (status === "aktif") {
-              cameraBtns.innerHTML += `<a href="gerbang.html?gerbang=${idGerbangParam}" class="btn-refresh" style="text-decoration: none; display: inline-flex; align-items: center; justify-content: center; padding: 0.75rem 1.5rem; font-weight: bold; background: var(--glass-bg); color: #fff; border: 1px solid var(--lancar);">📹 Lihat ${label} — ${arahLabel}</a>`;
+              cameraBtns.innerHTML += `
+                <a href="gerbang.html?gerbang=${idGerbangParam}" style="text-decoration: none; display: flex; flex-direction: column; padding: 1rem; border-radius: 12px; background: rgba(16, 185, 129, 0.1); border: 1px solid var(--lancar); color: #fff; transition: transform 0.2s, box-shadow 0.2s; box-shadow: 0 4px 12px rgba(0,0,0,0.2);" onmouseover="this.style.transform='translateY(-3px)';this.style.boxShadow='0 8px 16px rgba(16, 185, 129, 0.3)';" onmouseout="this.style.transform='none';this.style.boxShadow='0 4px 12px rgba(0,0,0,0.2)';">
+                  <span style="font-weight: 800; font-size: 0.9rem; color: var(--lancar); margin-bottom: 0.5rem; letter-spacing: 1px;">● ONLINE</span>
+                  <span style="font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 1.25rem;">${label}</span>
+                  <span style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">${arahLabel}</span>
+                  <span style="margin-top: 1rem; font-size: 0.85rem; font-weight: 600; text-decoration: underline; color: var(--accent);">Lihat CCTV →</span>
+                </a>`;
           } else {
-              cameraBtns.innerHTML += `<span class="btn-refresh" style="opacity: 0.5; cursor: not-allowed; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; padding: 0.75rem 1.5rem; font-weight: bold; background: var(--glass-bg); color: #fff; border: 1px solid var(--text-tertiary);">📹 Lihat ${label} — ${arahLabel} (Offline)</span>`;
+              cameraBtns.innerHTML += `
+                <div style="display: flex; flex-direction: column; padding: 1rem; border-radius: 12px; background: rgba(239, 68, 68, 0.1); border: 1px solid var(--macet); color: #fff; opacity: 0.8;">
+                  <span style="font-weight: 800; font-size: 0.9rem; color: var(--macet); margin-bottom: 0.5rem; letter-spacing: 1px;">○ OFFLINE</span>
+                  <span style="font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 1.25rem;">${label}</span>
+                  <span style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">${arahLabel}</span>
+                  <span style="margin-top: 1rem; font-size: 0.85rem; font-style: italic; color: #fca5a5;">Kamera tidak merespon</span>
+                </div>`;
           }
       }
     } catch (e) {

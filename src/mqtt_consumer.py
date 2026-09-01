@@ -86,11 +86,33 @@ class MqttConsumerApp:
         self.kumulatif_b_masuk = defaultdict(int)
         self.kumulatif_b_keluar = defaultdict(int)
         
-        # MQTT Client
-        self.client = mqtt.Client(client_id="server_consumer", callback_api_version=mqtt.CallbackAPIVersion.VERSION2)
-        self.client.on_connect = self.on_connect
-        self.client.on_message = self.on_message
+        self.last_seen = {}
+        self.status_gerbang = {}
         
+    def _set_status(self, gerbang_id: str, status: str):
+        if self.status_gerbang.get(gerbang_id) != status:
+            self.status_gerbang[gerbang_id] = status
+            try:
+                self.db.update_status_gerbang(gerbang_id, status)
+                logger.info(f"[Status Kamera] {gerbang_id} berubah menjadi {status.upper()}")
+            except Exception as e:
+                logger.error(f"[DB] Gagal update status gerbang: {e}")
+
+    def _watchdog_loop(self):
+        heartbeat_file = Path("data/logs/heartbeat_consumer.txt")
+        heartbeat_file.parent.mkdir(parents=True, exist_ok=True)
+        while True:
+            try:
+                heartbeat_file.write_text(str(int(time.time())))
+            except Exception:
+                pass
+            time.sleep(10)
+            now = time.time()
+            with self.state_lock:
+                for gerbang_id, last_ts in list(self.last_seen.items()):
+                    if now - last_ts > 60 and self.status_gerbang.get(gerbang_id) == "aktif":
+                        self._set_status(gerbang_id, "offline")
+
     def start(self):
         logger.info("=" * 70)
         logger.info("SERVER CONSUMER - Sitinjau Lauik Traffic System (Production Mode)")
@@ -99,6 +121,14 @@ class MqttConsumerApp:
         self.db.hubungkan()
         self.recover_state()
         self.jadwalkan_reset()
+        
+        t_watchdog = threading.Thread(target=self._watchdog_loop, daemon=True)
+        t_watchdog.start()
+        
+        # MQTT Client
+        self.client = mqtt.Client(client_id="server_consumer", callback_api_version=mqtt.CallbackAPIVersion.VERSION2)
+        self.client.on_connect = self.on_connect
+        self.client.on_message = self.on_message
         
         host = self.config.get("mqtt.broker_host", "localhost")
         port = self.config.get("mqtt.broker_port", 1883)
@@ -168,13 +198,35 @@ class MqttConsumerApp:
 
     def on_connect(self, client, userdata, flags, reason_code, properties=None):
         if reason_code == 0:
-            topik = f"{self.topic_prefix}/+/agregasi"
-            self.client.subscribe(topik, qos=1)
-            logger.info(f"[MQTT] Berlangganan topik: {topik}")
+            topik_agregasi = f"{self.topic_prefix}/+/agregasi"
+            topik_status = f"{self.topic_prefix}/+/status"
+            topik_command = f"{self.topic_prefix}/command/reset"
+            self.client.subscribe([(topik_agregasi, 1), (topik_status, 1), (topik_command, 1)])
+            logger.info(f"[MQTT] Berlangganan topik agregasi, status, command")
         else:
             logger.error(f"[MQTT] Gagal terhubung: {reason_code}")
 
     def on_message(self, client, userdata, msg):
+        topic = msg.topic
+        if topic == f"{self.topic_prefix}/command/reset":
+            logger.info("[MQTT] Menerima perintah reset manual.")
+            self.lakukan_reset_harian()
+            return
+            
+        if topic.endswith("/status"):
+            parts = topic.split("/")
+            if len(parts) >= 3:
+                gerbang_id = parts[1]
+                try:
+                    payload = json.loads(msg.payload.decode())
+                    status = payload.get("status", "offline")
+                    with self.state_lock:
+                        self.last_seen[gerbang_id] = time.time()
+                        self._set_status(gerbang_id, "aktif" if status == "online" else "offline")
+                except Exception:
+                    pass
+            return
+            
         try:
             payload = json.loads(msg.payload.decode())
         except Exception as e:
@@ -184,6 +236,11 @@ class MqttConsumerApp:
         gerbang_id = payload.get("gerbang_id")
         counter = payload.get("counter", {})
         ts = payload.get("timestamp", time.time())
+        
+        if gerbang_id:
+            with self.state_lock:
+                self.last_seen[gerbang_id] = time.time()
+                self._set_status(gerbang_id, "aktif")
         
         # Deteksi drift
         if abs(time.time() - ts) > 5.0:

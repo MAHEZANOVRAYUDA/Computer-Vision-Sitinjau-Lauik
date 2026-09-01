@@ -15,7 +15,7 @@ import asyncio
 import cv2
 import uvicorn
 from fastapi import FastAPI
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, Response
 import logging
 
 app = FastAPI()
@@ -72,6 +72,22 @@ async def generate_frames():
 @app.get("/video_feed")
 async def video_feed():
     return StreamingResponse(generate_frames(), media_type="multipart/x-mixed-replace; boundary=frame")
+
+
+@app.get("/snapshot")
+async def snapshot():
+    with _global_frame_lock:
+        frame_copy = _global_frame.copy() if _global_frame is not None else None
+        
+    if frame_copy is None:
+        return Response(content=b"", media_type="image/jpeg", status_code=503)
+        
+    encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), 80]
+    ret, buffer = cv2.imencode(".jpg", frame_copy, encode_param)
+    if not ret:
+        return Response(content=b"", media_type="image/jpeg", status_code=500)
+        
+    return Response(content=buffer.tobytes(), media_type="image/jpeg")
 
 
 @app.get("/health")

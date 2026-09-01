@@ -60,7 +60,9 @@ class EventPublisher:
 
         self.client.on_connect = self._on_connect
         self.client.on_disconnect = self._on_disconnect
+        self.client.on_message = self._on_message
         self._terhubung = False
+        self.on_reset_command = None
 
         # Pastikan direktori buffer ada
         self._buffer_path.parent.mkdir(parents=True, exist_ok=True)
@@ -75,10 +77,19 @@ class EventPublisher:
             status_topic = f"{self.topic_prefix}/{self.client_id}/status"
             self.client.publish(status_topic, json.dumps({"status": "online", "timestamp": time.time()}), qos=1, retain=True)
             
+            # Subscribe to command topics
+            self.client.subscribe(f"{self.topic_prefix}/command/reset", qos=1)
+            
             # Drain buffer lokal — kirim ulang event yang tertunda saat offline
             self._drain_buffer()
         else:
             logger.warning(f"[MQTT] Gagal terhubung, kode alasan: {reason_code}")
+
+    def _on_message(self, client, userdata, msg):
+        if msg.topic == f"{self.topic_prefix}/command/reset":
+            logger.info("[MQTT] Menerima perintah reset counter.")
+            if self.on_reset_command:
+                self.on_reset_command()
 
     def _on_disconnect(self, client, userdata, flags, reason_code, properties=None):
         self._terhubung = False
@@ -126,6 +137,7 @@ class EventPublisher:
             with open(self._buffer_path, "r", encoding="utf-8") as f:
                 baris_list = f.readlines()
 
+            baris_gagal_list = []
             for baris in baris_list:
                 try:
                     entry = json.loads(baris.strip())
@@ -133,10 +145,15 @@ class EventPublisher:
                     baris_berhasil += 1
                 except Exception as e:
                     logger.warning(f"[MQTT Buffer] Gagal kirim ulang entry: {e}")
+                    baris_gagal_list.append(baris)
                     baris_gagal += 1
 
-            # Hapus buffer setelah drain berhasil (meski ada beberapa yang gagal)
-            self._buffer_path.unlink()
+            if not baris_gagal_list:
+                self._buffer_path.unlink()
+            else:
+                with open(self._buffer_path, "w", encoding="utf-8") as f:
+                    f.writelines(baris_gagal_list)
+                    
             logger.info(
                 f"[MQTT Buffer] Drain selesai: {baris_berhasil} terkirim, "
                 f"{baris_gagal} gagal."

@@ -42,6 +42,19 @@ from src.watchdog import SystemWatchdog
 logger = get_logger(__name__)
 
 
+def _heartbeat_loop():
+    from pathlib import Path
+    import time
+    heartbeat_file = Path("data/logs/heartbeat_main.txt")
+    heartbeat_file.parent.mkdir(parents=True, exist_ok=True)
+    while True:
+        try:
+            heartbeat_file.write_text(str(int(time.time())))
+        except Exception:
+            pass
+        time.sleep(10)
+
+
 def jalankan():
     parser = argparse.ArgumentParser(
         description="Jalankan edge detector untuk kamera tertentu."
@@ -95,11 +108,17 @@ def jalankan():
     )
     logger.info("=" * 70)
 
+    import threading
+    t_hb = threading.Thread(target=_heartbeat_loop, daemon=True)
+    t_hb.start()
+    
     # --- Inisialisasi komponen ---
     publisher = EventPublisher(config, kamera_config)
-    publisher.hubungkan(timeout_detik=5)
 
     detektor = DetektorKendaraan(config, kamera_config, publisher=publisher)
+    publisher.on_reset_command = detektor.reset_tracker
+
+    publisher.hubungkan(timeout_detik=5)
     sumber_video = SumberVideo(config, kamera_config)
 
     tampilkan_window = config.get("tampilan.tampilkan_window", False)

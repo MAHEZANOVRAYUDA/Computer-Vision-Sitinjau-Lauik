@@ -30,6 +30,8 @@ python-multipart==0.0.20
 
 # --- Utilitas ---
 python-dotenv==1.0.1         # Manajemen environment variable (opsional, untuk kredensial sensitif)
+slowapi==0.1.9               # Rate limiting untuk FastAPI
+ruamel.yaml==0.18.6          # YAML parser yang mempertahankan komentar
 yt-dlp==2024.12.13            # Download video YouTube untuk simulasi (opsional)
 
 # --- Testing ---

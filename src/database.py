@@ -314,6 +314,50 @@ class Database:
                 """
             )
             return cursor.fetchall()
+            
+    def update_status_gerbang(self, gerbang_id: str, status: str):
+        """Mengubah status perangkat gerbang (aktif / offline)."""
+        with self._cursor() as cursor:
+            cursor.execute(
+                "UPDATE gerbang_kamera SET status_perangkat = %s WHERE id_gerbang = %s",
+                (status, gerbang_id)
+            )
+
+    def eksekusi(self, query: str, params: tuple = (), fetch: bool = False):
+        with self._cursor() as cursor:
+            cursor.execute(query, params)
+            if fetch:
+                return cursor.fetchall()
+                
+    def catat_aktivitas(self, kategori: str, deskripsi: str, actor: str = "sistem", gerbang_id: Optional[str] = None, detail_json: Optional[dict] = None):
+        import json
+        with self._cursor() as cursor:
+            cursor.execute(
+                """
+                INSERT INTO log_aktivitas (kategori, deskripsi, actor, gerbang_id, detail_json)
+                VALUES (%s, %s, %s, %s, %s)
+                """,
+                (kategori, deskripsi, actor, gerbang_id, json.dumps(detail_json) if detail_json else None)
+            )
+            
+    def ambil_log_aktivitas(self, limit: int = 50, offset: int = 0, kategori: Optional[str] = None) -> List[Dict]:
+        with self._dict_cursor() as cursor:
+            query = "SELECT * FROM log_aktivitas "
+            params = []
+            if kategori:
+                query += "WHERE kategori = %s "
+                params.append(kategori)
+            query += "ORDER BY waktu DESC LIMIT %s OFFSET %s"
+            params.extend([limit, offset])
+            
+            cursor.execute(query, tuple(params))
+            
+            # Convert datetime to string for json serialization
+            rows = cursor.fetchall()
+            for row in rows:
+                if row.get("waktu"):
+                    row["waktu"] = row["waktu"].isoformat()
+            return rows
 
     def tutup(self):
         if self._pool is not None:

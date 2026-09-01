@@ -425,6 +425,8 @@ class GarisInput(BaseModel):
 
 class LineInput(BaseModel):
     id: str
+    arah: str
+    arah_topografi: str
     garis: GarisInput
 
 class KalibrasiPayload(BaseModel):
@@ -479,6 +481,8 @@ def update_kalibrasi(request: Request, gerbang_id: str, payload: KalibrasiPayloa
                             line["garis"] = {}
                         line["garis"]["titik_1"] = list(req_line.garis.titik_1)
                         line["garis"]["titik_2"] = list(req_line.garis.titik_2)
+                        line["arah"] = req_line.arah
+                        line["arah_topografi"] = req_line.arah_topografi
                         
     with open(config_file, "w") as f:
         yaml.dump(data, f)

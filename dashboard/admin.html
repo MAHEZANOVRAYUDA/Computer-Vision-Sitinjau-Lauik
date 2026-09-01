@@ -97,6 +97,24 @@
     .alert { padding: 1rem; border-radius: 8px; margin-bottom: 1rem; display: none; }
     .alert-success { background: rgba(16, 185, 129, 0.2); border: 1px solid var(--lancar); color: var(--lancar); }
     .alert-error { background: rgba(239, 68, 68, 0.2); border: 1px solid var(--macet); color: var(--macet); }
+    
+    .config-panel {
+        background: rgba(0,0,0,0.2);
+        padding: 1rem;
+        border-radius: 6px;
+        margin-bottom: 1rem;
+        border: 1px solid rgba(255,255,255,0.05);
+    }
+    
+    select.form-control {
+        background-color: #1e293b;
+        color: #f8fafc;
+        border: 1px solid #475569;
+        cursor: pointer;
+    }
+    select.form-control:focus {
+        border-color: var(--pupr-yellow);
+    }
 </style>
 </head>
 <body>
@@ -179,7 +197,33 @@
                 <button id="btn-save" class="btn btn-primary">Simpan Konfigurasi Garis</button>
                 <button id="btn-reset" class="btn btn-danger" style="margin-top: 0.5rem;">Reset Data Kendaraan (Hari Ini)</button>
                 
-                <hr style="border-color: var(--glass-border); margin: 2rem 0; opacity: 0.5;">
+                <hr style="border-color: var(--glass-border); margin: 1.5rem 0; opacity: 0.5;">
+                
+                <div id="line-config-editor" style="display: none;">
+                    <h4 style="color: var(--text-dark-primary); margin-top: 0; margin-bottom: 1rem; font-family: var(--font-display);">Pengaturan Garis <span id="lbl-line-id" style="color: var(--pupr-yellow);"></span></h4>
+                    
+                    <div class="config-panel">
+                        <div class="form-group">
+                            <label>Sisi Lajur (Arah Kendaraan)</label>
+                            <select id="sel-arah" class="form-control" style="font-size: 0.85rem; padding: 0.6rem;">
+                                <option value="masuk">Masuk ke ruas jalan (IN)</option>
+                                <option value="keluar">Keluar dari ruas jalan (OUT)</option>
+                            </select>
+                            <p style="font-size: 0.75rem; color: var(--text-tertiary); margin-top: 4px;">Tentukan apakah kendaraan yang memotong garis ini dihitung sebagai kendaraan masuk atau keluar dari area pantauan utama.</p>
+                        </div>
+                        
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label>Arah Topografi (Gradient)</label>
+                            <select id="sel-topografi" class="form-control" style="font-size: 0.85rem; padding: 0.6rem;">
+                                <option value="naik">Menanjak (Naik)</option>
+                                <option value="turun">Menurun (Turun)</option>
+                            </select>
+                            <p style="font-size: 0.75rem; color: var(--text-tertiary); margin-top: 4px;">Informasi ini membantu sistem pakar mengevaluasi perilaku kecepatan di tanjakan ekstrem.</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <hr style="border-color: var(--glass-border); margin: 1.5rem 0; opacity: 0.5;">
                 
                 <h3 class="section-title">Daftar Garis</h3>
                 <div id="lines-container" class="line-list">
@@ -292,7 +336,15 @@
     function updateWatermark() {
         const now = new Date();
         const wm = document.getElementById("watermark");
-        if(wm) wm.textContent = now.toISOString().replace('T', ' ').substring(0, 19);
+        if(wm) {
+            const yyyy = now.getFullYear();
+            const mm = String(now.getMonth() + 1).padStart(2, '0');
+            const dd = String(now.getDate()).padStart(2, '0');
+            const hh = String(now.getHours()).padStart(2, '0');
+            const min = String(now.getMinutes()).padStart(2, '0');
+            const ss = String(now.getSeconds()).padStart(2, '0');
+            wm.textContent = `${yyyy}-${mm}-${dd} ${hh}:${min}:${ss}`;
+        }
     }
     
     function showAlert(msg, type="success") {
@@ -363,7 +415,7 @@
             div.innerHTML = `
                 <div style="display:flex; justify-content:space-between; align-items:center;">
                     <h4 style="margin:0; color: ${color};">${line.id}</h4>
-                    <span style="font-size:0.8rem; background:rgba(255,255,255,0.1); padding:2px 6px; border-radius:4px;">${line.arah}</span>
+                    <span style="font-size:0.8rem; background:rgba(255,255,255,0.1); padding:2px 6px; border-radius:4px;">${line.arah} | ${line.arah_topografi || 'naik'}</span>
                 </div>
                 <div class="coord-text" style="margin-top: 8px;">
                     T1: [${t1[0]}, ${t1[1]}]<br>
@@ -372,7 +424,48 @@
             `;
             container.appendChild(div);
         });
+        
+        updateEditorUI();
         drawCanvas();
+    }
+    
+    function updateEditorUI() {
+        const editor = document.getElementById("line-config-editor");
+        if (selectedLineIndex === -1 || !currentLines[selectedLineIndex]) {
+            editor.style.display = "none";
+            return;
+        }
+        
+        editor.style.display = "block";
+        const line = currentLines[selectedLineIndex];
+        
+        document.getElementById("lbl-line-id").textContent = line.id;
+        
+        const selArah = document.getElementById("sel-arah");
+        const selTopografi = document.getElementById("sel-topografi");
+        
+        selArah.value = line.arah || "masuk";
+        selTopografi.value = line.arah_topografi || "naik";
+        
+        // Remove old listeners to prevent duplicates
+        const newSelArah = selArah.cloneNode(true);
+        const newSelTopografi = selTopografi.cloneNode(true);
+        selArah.parentNode.replaceChild(newSelArah, selArah);
+        selTopografi.parentNode.replaceChild(newSelTopografi, selTopografi);
+        
+        newSelArah.addEventListener("change", (e) => {
+            if (currentLines[selectedLineIndex]) {
+                currentLines[selectedLineIndex].arah = e.target.value;
+                renderLinesList();
+            }
+        });
+        
+        newSelTopografi.addEventListener("change", (e) => {
+            if (currentLines[selectedLineIndex]) {
+                currentLines[selectedLineIndex].arah_topografi = e.target.value;
+                renderLinesList();
+            }
+        });
     }
     
     function drawCanvas() {
@@ -471,6 +564,8 @@
         
         const newLines = currentLines.map(line => ({
             id: line.id,
+            arah: line.arah,
+            arah_topografi: line.arah_topografi,
             garis: { titik_1: line.garis.titik_1, titik_2: line.garis.titik_2 }
         }));
         

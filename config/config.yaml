@@ -191,7 +191,7 @@ agregasi:
   interval_detik: 30
 
 mqtt:
-  broker_host: "sitinjau_mqtt"     # Gunakan nama service Docker
+  broker_host: "localhost"     # Gunakan nama service Docker
   broker_port: 1883
   topic_prefix: "sitinjau_lauik"
   client_id: "gerbang_a_edge"

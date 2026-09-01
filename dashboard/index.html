@@ -566,7 +566,7 @@
   // ================================================================
   function initChart() {
     const ctx = document.getElementById("trendChart").getContext("2d");
-    Chart.defaults.color = "#334155";
+    Chart.defaults.color = "#cbd5e1";
     Chart.defaults.font.family = "Inter";
 
     trendChart = new Chart(ctx, {
@@ -605,14 +605,14 @@
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
-          legend: { display: true, position: "top" },
+          legend: { display: true, position: "top", labels: { color: "#cbd5e1" } },
           tooltip: {
             mode: "index",
             intersect: false,
             backgroundColor: "rgba(15, 23, 42, 0.9)",
             titleColor: "#fff",
             bodyColor: "#e2e8f0",
-            borderColor: "#334155",
+            borderColor: "rgba(255,255,255,0.1)",
             borderWidth: 1,
             callbacks: {
               label: function(ctx) {
@@ -626,14 +626,15 @@
           y: {
             beginAtZero: true,
             max: 1.2,
-            grid: { color: "rgba(255,255,255,0.05)" },
+            grid: { color: "rgba(255,255,255,0.1)" },
             ticks: {
+              color: "#cbd5e1",
               callback: (val) => val.toFixed(2),
             },
           },
           x: {
             grid: { display: false },
-            ticks: { maxTicksLimit: 8 },
+            ticks: { color: "#cbd5e1", maxTicksLimit: 8 },
           },
         },
       },

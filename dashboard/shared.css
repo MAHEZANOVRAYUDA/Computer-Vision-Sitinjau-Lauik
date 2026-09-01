@@ -26,6 +26,7 @@
   
   --accent-primary: var(--pupr-yellow);
   --accent-secondary: #eab308;
+  --accent: var(--pupr-yellow);
   
   --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   --font-display: 'Outfit', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;

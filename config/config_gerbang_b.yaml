@@ -42,34 +42,42 @@ gerbang:
 # 2b. DAFTAR KAMERA AKTIF — Gerbang B
 # ---------------------------------------------------------------------
 kamera:
-  - id: "gerbang_a"
-    gerbang: "A"
-    aktif: false
-    stream_port: 9001
-    rtsp_url: null
-    counting_lines: []
-  - id: "gerbang_b"
-    gerbang: "B"
-    aktif: true
-    source_type: "file"           # "file" untuk demo, "rtsp" saat kamera fisik
-    source: "data/videos/test3.mp4"
-    stream_port: 9002
-    rtsp_url: "${GERBANG_B_RTSP_URL}"
-    counting_lines:
-      - id: "lajur_kiri"
-        arah: "masuk"
-        garis:
-          titik_1: [100, 270]
-          titik_2: [300, 270]
-        toleransi_piksel: 8
-        pixel_per_meter: 25.0
-      - id: "lajur_kanan"
-        arah: "keluar"
-        garis:
-          titik_1: [340, 270]
-          titik_2: [540, 270]
-        toleransi_piksel: 8
-        pixel_per_meter: 25.0
+- id: "gerbang_a"
+  gerbang: "A"
+  aktif: false
+  stream_port: 9001
+  rtsp_url:
+  counting_lines: []
+- id: "gerbang_b"
+  gerbang: "B"
+  aktif: true
+  source_type: "file"             # "file" untuk demo, "rtsp" saat kamera fisik
+  source: "data/videos/test3.mp4"
+  stream_port: 9002
+  rtsp_url: "${GERBANG_B_RTSP_URL}"
+  counting_lines:
+  - id: "lajur_kiri"
+    arah: "masuk"
+    garis:
+      titik_1:
+      - 219
+      - 321
+      titik_2:
+      - 442
+      - 323
+    toleransi_piksel: 8
+    pixel_per_meter: 25.0
+  - id: "lajur_kanan"
+    arah: "keluar"
+    garis:
+      titik_1:
+      - 510
+      - 304
+      titik_2:
+      - 684
+      - 301
+    toleransi_piksel: 8
+    pixel_per_meter: 25.0
 
 # ---------------------------------------------------------------------
 # 3. VIRTUAL COUNTING LINE — Gerbang B
@@ -142,7 +150,7 @@ agregasi:
   interval_detik: 30
 
 mqtt:
-  broker_host: "sitinjau_mqtt"     # Gunakan nama service Docker
+  broker_host: "localhost"     # Gunakan nama service Docker
   broker_port: 1883
   topic_prefix: "sitinjau_lauik"
   client_id: "gerbang_b_edge"      # WAJIB BERBEDA dari Gerbang A

@@ -426,7 +426,7 @@ class GarisInput(BaseModel):
 class LineInput(BaseModel):
     id: str
     arah: str
-    arah_topografi: str
+    arah_topografi: Optional[str] = "naik"
     garis: GarisInput
 
 class KalibrasiPayload(BaseModel):

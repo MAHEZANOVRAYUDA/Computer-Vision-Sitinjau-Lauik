@@ -564,8 +564,8 @@
         
         const newLines = currentLines.map(line => ({
             id: line.id,
-            arah: line.arah,
-            arah_topografi: line.arah_topografi,
+            arah: line.arah || "masuk",
+            arah_topografi: line.arah_topografi || "naik",
             garis: { titik_1: line.garis.titik_1, titik_2: line.garis.titik_2 }
         }));
         
@@ -576,7 +576,13 @@
                 body: JSON.stringify({ lines: newLines })
             });
             const json = await res.json();
-            if(!res.ok) throw new Error(json.detail || "Gagal menyimpan kalibrasi");
+            if(!res.ok) {
+                let errMsg = "Gagal menyimpan kalibrasi";
+                if (typeof json.detail === 'string') errMsg = json.detail;
+                else if (Array.isArray(json.detail)) errMsg = json.detail.map(d => `${d.loc ? d.loc.join('.') : ''}: ${d.msg}`).join(', ');
+                else if (json.detail) errMsg = JSON.stringify(json.detail);
+                throw new Error(errMsg);
+            }
             showAlert("Berhasil: " + json.message, "success");
             loadLogs(); // Refresh log table
         } catch(e) {
